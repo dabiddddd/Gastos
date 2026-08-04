@@ -2,6 +2,7 @@ const CACHE_NAME = "gastos-cache-v1";
 const ASSETS = [
   "./",
   "./expense-tracker.html",
+  "./quick-add.html",
   "./manifest.json"
 ];
 
