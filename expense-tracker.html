@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#f2f2f7" id="metaTheme">
@@ -77,7 +77,7 @@
     background: color-mix(in srgb, var(--bg) 85%, transparent);
     backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
     border-bottom: 0.5px solid var(--border);
-    padding: 14px 20px 12px;
+    padding: calc(14px + env(safe-area-inset-top)) 20px 12px;
   }
   .nav-title { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 12px; }
   .segmented {
@@ -235,12 +235,36 @@
     text-overflow: ellipsis; white-space: nowrap;
   }
   .qt-amount { font-size: 17px; font-weight: 700; color: var(--accent); letter-spacing: -0.01em; }
+  .quick-tile-add {
+    align-items: center; justify-content: center; flex-direction: row; gap: 8px;
+    border: 1.5px dashed var(--border); background: transparent; color: var(--text-secondary);
+  }
+  .quick-tile-add .qt-label { font-weight: 600; white-space: normal; }
+  .qt-add-plus { font-size: 17px; font-weight: 700; line-height: 1; color: var(--accent); }
   .quick-empty { color: var(--text-secondary); font-size: 14px; text-align: center; padding: 20px 8px; line-height: 1.45; }
   .link-btn {
     background: transparent; border: none; color: var(--accent);
     font-size: 14px; font-weight: 600; padding: 12px 0 2px; width: 100%;
   }
   .link-btn:active { opacity: 0.5; }
+  .link-btn.danger { color: var(--red); }
+
+  /* Category settings editor */
+  .cat-edit-row { display: flex; gap: 16px; padding: 0 0 8px 16px; }
+  .cat-edit-row .link-btn { width: auto; padding: 4px 0; font-size: 13px; }
+  .chip-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 10px 16px; }
+  .sub-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--card); border: 0.5px solid var(--border); color: var(--text);
+  }
+  .chip-x {
+    background: transparent; border: none; color: var(--text-secondary);
+    font-size: 11px; line-height: 1; padding: 2px; margin: -2px;
+  }
+  .chip-add {
+    background: transparent; border: 1.5px dashed var(--border); color: var(--accent);
+    font-weight: 600;
+  }
 
   /* Appearance */
   .settings-row.stack { display: block; }
@@ -275,6 +299,7 @@
     <div class="nav-title">Gastos</div>
     <div class="segmented">
       <button class="seg-btn active" id="tabDashboard">Dashboard</button>
+      <button class="seg-btn" id="tabStats">Stats</button>
       <button class="seg-btn" id="tabLog">Log</button>
       <button class="seg-btn" id="tabSettings">Settings</button>
     </div>
@@ -284,6 +309,7 @@
     <div id="quickAddCard"></div>
     <div id="addFormCard"></div>
     <div id="dashboardView"></div>
+    <div id="statsView" style="display:none;"></div>
     <div id="logView" style="display:none;"></div>
     <div id="settingsView" style="display:none;"></div>
   </div>
@@ -301,12 +327,12 @@
    Absent flag means false. These are defaults applied automatically
    so the dashboard can report on both axes with no extra taps.
    ============================================================ */
-const CATEGORIES = [
+const DEFAULT_CATEGORIES = [
   "Food","Transport","Bills","Home","Family","Health","Personal",
   "Training","School","Shopping","Giving","Travel","Savings","Other"
 ];
 
-const CAT_COLORS = {
+const DEFAULT_CAT_COLORS = {
   Food:"#ff9f0a", Transport:"#30b0c7", Bills:"#ff453a", Home:"#a2845e",
   Family:"#64d2ff", Health:"#ff375f", Personal:"#ffd60a", Training:"#5e5ce6",
   School:"#32d74b", Shopping:"#bf5af2", Giving:"#66d4cf", Travel:"#0a84ff",
@@ -317,7 +343,7 @@ const CAT_COLORS = {
    out of spending totals, charts and the category breakdown. */
 const NON_SPEND = ["Savings"];
 
-const SUBCATS = {
+const DEFAULT_SUBCATS = {
   Food: [
     {n:"Groceries", r:1, e:1},
     {n:"Dining out"},
@@ -500,17 +526,17 @@ const SUBCATS = {
    kind: "in" or "out". Anything without a kind is treated as
    "out" so older entries keep working untouched.
    ============================================================ */
-const INCOME_CATEGORIES = [
+const DEFAULT_INCOME_CATEGORIES = [
   "Allowance","Salary","Business","Gifts & Support","Investments","Refunds","Other Income"
 ];
 
-const INCOME_COLORS = {
+const DEFAULT_INCOME_COLORS = {
   "Allowance":"#34c759", "Salary":"#0a84ff", "Business":"#5e5ce6",
   "Gifts & Support":"#ff9f0a", "Investments":"#66d4cf", "Refunds":"#bf5af2",
   "Other Income":"#8e8e93"
 };
 
-const INCOME_SUBCATS = {
+const DEFAULT_INCOME_SUBCATS = {
   "Allowance": [
     {n:"Weekly allowance", r:1},
     {n:"Daily allowance", r:1},
@@ -576,8 +602,167 @@ const INCOME_SUBCATS = {
 };
 
 /* Merged lookups so a category or subcategory resolves regardless of direction. */
-const ALL_COLORS = Object.assign({}, CAT_COLORS, INCOME_COLORS);
-const ALL_SUBCATS = Object.assign({}, SUBCATS, INCOME_SUBCATS);
+const CAT_CONFIG_KEY = "gastos_cat_config_v1";
+
+/* ============================================================
+   Categories are editable in Settings. What's above is only the
+   default seed; the live values below are loaded from storage
+   (falling back to a deep copy of the defaults on first run) and
+   are what the rest of the app actually reads and writes.
+   ============================================================ */
+function defaultCategoryConfig() {
+  return {
+    categories: DEFAULT_CATEGORIES.slice(),
+    catColors: Object.assign({}, DEFAULT_CAT_COLORS),
+    subcats: JSON.parse(JSON.stringify(DEFAULT_SUBCATS)),
+    incomeCategories: DEFAULT_INCOME_CATEGORIES.slice(),
+    incomeColors: Object.assign({}, DEFAULT_INCOME_COLORS),
+    incomeSubcats: JSON.parse(JSON.stringify(DEFAULT_INCOME_SUBCATS))
+  };
+}
+function loadCategoryConfig() {
+  let stored = null;
+  try { stored = localStorage.getItem(CAT_CONFIG_KEY); } catch(e) {}
+  if (!stored) return defaultCategoryConfig();
+  try {
+    const parsed = JSON.parse(stored);
+    const base = defaultCategoryConfig();
+    return {
+      categories: Array.isArray(parsed.categories) ? parsed.categories : base.categories,
+      catColors: parsed.catColors && typeof parsed.catColors === "object" ? parsed.catColors : base.catColors,
+      subcats: parsed.subcats && typeof parsed.subcats === "object" ? parsed.subcats : base.subcats,
+      incomeCategories: Array.isArray(parsed.incomeCategories) ? parsed.incomeCategories : base.incomeCategories,
+      incomeColors: parsed.incomeColors && typeof parsed.incomeColors === "object" ? parsed.incomeColors : base.incomeColors,
+      incomeSubcats: parsed.incomeSubcats && typeof parsed.incomeSubcats === "object" ? parsed.incomeSubcats : base.incomeSubcats
+    };
+  } catch(e) { return defaultCategoryConfig(); }
+}
+function saveCategoryConfig() {
+  const payload = { categories: CATEGORIES, catColors: CAT_COLORS, subcats: SUBCATS,
+    incomeCategories: INCOME_CATEGORIES, incomeColors: INCOME_COLORS, incomeSubcats: INCOME_SUBCATS };
+  try { localStorage.setItem(CAT_CONFIG_KEY, JSON.stringify(payload)); return true; }
+  catch(e) { showToast("Couldn't save. Storage may be full."); return false; }
+}
+/* Recomputes the merged lookups after any category/subcategory edit. */
+function recomputeMergedCats() {
+  ALL_COLORS = Object.assign({}, CAT_COLORS, INCOME_COLORS);
+  ALL_SUBCATS = Object.assign({}, SUBCATS, INCOME_SUBCATS);
+}
+
+const _catConfig = loadCategoryConfig();
+let CATEGORIES = _catConfig.categories;
+let CAT_COLORS = _catConfig.catColors;
+let SUBCATS = _catConfig.subcats;
+let INCOME_CATEGORIES = _catConfig.incomeCategories;
+let INCOME_COLORS = _catConfig.incomeColors;
+let INCOME_SUBCATS = _catConfig.incomeSubcats;
+let ALL_COLORS = {};
+let ALL_SUBCATS = {};
+recomputeMergedCats();
+
+/* Rotates through when a new category is created, so it gets a
+   sensible color without the user having to pick one. */
+const NEW_CAT_PALETTE = ["#ff9f0a","#30b0c7","#ff453a","#a2845e","#64d2ff","#ff375f",
+  "#ffd60a","#5e5ce6","#32d74b","#bf5af2","#66d4cf","#0a84ff","#30d158","#8e8e93"];
+function nextPaletteColor(usedColors) {
+  const used = new Set(usedColors);
+  const free = NEW_CAT_PALETTE.filter(c => !used.has(c));
+  return free.length ? free[0] : NEW_CAT_PALETTE[usedColors.length % NEW_CAT_PALETTE.length];
+}
+
+function slugTaken(name, list) {
+  const n = name.trim().toLowerCase();
+  return list.some(c => c.toLowerCase() === n);
+}
+
+/* Renaming or deleting a category/subcategory must not silently
+   orphan money already logged under the old name, so entries and
+   presets that reference it are updated (or reassigned) alongside
+   the category list itself. */
+function renameCategory(kind, oldName, newName) {
+  newName = newName.trim();
+  if (!newName || newName === oldName) return false;
+  const cats = kind === "in" ? INCOME_CATEGORIES : CATEGORIES;
+  const colors = kind === "in" ? INCOME_COLORS : CAT_COLORS;
+  const subs = kind === "in" ? INCOME_SUBCATS : SUBCATS;
+  if (slugTaken(newName, cats)) { showToast("That name is already used"); return false; }
+  const idx = cats.indexOf(oldName);
+  if (idx === -1) return false;
+  cats[idx] = newName;
+  colors[newName] = colors[oldName]; delete colors[oldName];
+  subs[newName] = subs[oldName]; delete subs[oldName];
+  if (kind === "out" && NON_SPEND.indexOf(oldName) > -1) {
+    NON_SPEND[NON_SPEND.indexOf(oldName)] = newName;
+  }
+  entries.forEach(e => { if (kindOf(e) === kind && e.category === oldName) e.category = newName; });
+  presets.forEach(p => { if (kindOf(p) === kind && p.category === oldName) p.category = newName; });
+  saveEntries(entries); savePresets(presets); saveCategoryConfig(); recomputeMergedCats();
+  return true;
+}
+function deleteCategory(kind, name) {
+  const cats = kind === "in" ? INCOME_CATEGORIES : CATEGORIES;
+  const colors = kind === "in" ? INCOME_COLORS : CAT_COLORS;
+  const subs = kind === "in" ? INCOME_SUBCATS : SUBCATS;
+  const fallback = kind === "in" ? "Other Income" : "Other";
+  if (name === fallback) { showToast(`Can't remove "${fallback}"`); return false; }
+  const idx = cats.indexOf(name);
+  if (idx === -1) return false;
+  cats.splice(idx, 1);
+  delete colors[name]; delete subs[name];
+  if (kind === "out" && NON_SPEND.indexOf(name) > -1) NON_SPEND.splice(NON_SPEND.indexOf(name), 1);
+  entries.forEach(e => { if (kindOf(e) === kind && e.category === name) { e.category = fallback; e.sub = ""; } });
+  presets.forEach(p => { if (kindOf(p) === kind && p.category === name) { p.category = fallback; p.sub = ""; } });
+  saveEntries(entries); savePresets(presets); saveCategoryConfig(); recomputeMergedCats();
+  return true;
+}
+function addCategory(kind, name) {
+  name = name.trim();
+  if (!name) return false;
+  const cats = kind === "in" ? INCOME_CATEGORIES : CATEGORIES;
+  const colors = kind === "in" ? INCOME_COLORS : CAT_COLORS;
+  const subs = kind === "in" ? INCOME_SUBCATS : SUBCATS;
+  if (slugTaken(name, cats)) { showToast("That category already exists"); return false; }
+  cats.push(name);
+  colors[name] = nextPaletteColor(Object.values(colors));
+  subs[name] = [];
+  saveCategoryConfig(); recomputeMergedCats();
+  return true;
+}
+function renameSubcat(kind, cat, oldSub, newSub) {
+  newSub = newSub.trim();
+  if (!newSub || newSub === oldSub) return false;
+  const subs = (kind === "in" ? INCOME_SUBCATS : SUBCATS)[cat];
+  if (!subs) return false;
+  if (subs.some(s => s.n.toLowerCase() === newSub.toLowerCase())) { showToast("That subcategory already exists"); return false; }
+  const row = subs.find(s => s.n === oldSub);
+  if (!row) return false;
+  row.n = newSub;
+  entries.forEach(e => { if (kindOf(e) === kind && e.category === cat && e.sub === oldSub) e.sub = newSub; });
+  presets.forEach(p => { if (kindOf(p) === kind && p.category === cat && p.sub === oldSub) p.sub = newSub; });
+  saveEntries(entries); savePresets(presets); saveCategoryConfig(); recomputeMergedCats();
+  return true;
+}
+function deleteSubcat(kind, cat, sub) {
+  const subs = (kind === "in" ? INCOME_SUBCATS : SUBCATS)[cat];
+  if (!subs) return false;
+  const idx = subs.findIndex(s => s.n === sub);
+  if (idx === -1) return false;
+  subs.splice(idx, 1);
+  entries.forEach(e => { if (kindOf(e) === kind && e.category === cat && e.sub === sub) e.sub = ""; });
+  presets.forEach(p => { if (kindOf(p) === kind && p.category === cat && p.sub === sub) p.sub = ""; });
+  saveEntries(entries); savePresets(presets); saveCategoryConfig(); recomputeMergedCats();
+  return true;
+}
+function addSubcat(kind, cat, name) {
+  name = name.trim();
+  if (!name) return false;
+  const subs = (kind === "in" ? INCOME_SUBCATS : SUBCATS)[cat];
+  if (!subs) return false;
+  if (subs.some(s => s.n.toLowerCase() === name.toLowerCase())) { showToast("That subcategory already exists"); return false; }
+  subs.push({n: name});
+  saveCategoryConfig(); recomputeMergedCats();
+  return true;
+}
 
 function kindOf(e) { return e && e.kind === "in" ? "in" : "out"; }
 function catsFor(kind) { return kind === "in" ? INCOME_CATEGORIES : CATEGORIES; }
@@ -600,14 +785,8 @@ const ACCENTS = [
   {n:"Graphite", v:"#636366"}
 ];
 
-/* Seeded once, on first run only. Edit or delete them in Settings. */
-const DEFAULT_PRESETS = [
-  {id:"seed-allowance", label:"Allowance", amount:500, kind:"in", category:"Allowance", sub:"Weekly allowance", tags:[]},
-  {id:"seed-commute", label:"Commute to school", amount:36, kind:"out", category:"Transport", sub:"Jeepney / tricycle", tags:[]},
-  {id:"seed-baon", label:"Baon", amount:100, kind:"out", category:"School", sub:"Baon / school allowance", tags:[]},
-  {id:"seed-coffee", label:"Coffee", amount:120, kind:"out", category:"Food", sub:"Coffee & snacks", tags:[]},
-  {id:"seed-water", label:"Water refill", amount:50, kind:"out", category:"Food", sub:"Water refill", tags:[]}
-];
+/* No longer seeded with defaults — starts empty so users build their own. */
+const DEFAULT_PRESETS = [];
 
 function peso(n) {
   return "₱" + Number(n||0).toLocaleString("en-PH", {minimumFractionDigits:2, maximumFractionDigits:2});
@@ -737,8 +916,13 @@ function loadPresets() {
     /* Presets saved before income existed have no kind. Default them to outgoing. */
     let changed = false;
     parsed.forEach(p => { if (p && p.kind !== "in" && p.kind !== "out") { p.kind = "out"; changed = true; } });
-    if (changed) savePresets(parsed);
-    return parsed;
+    /* Old builds seeded a few sample quick adds (id starting "seed-") on
+       first run. Those are no longer wanted, so strip any that are still
+       sitting in a user's storage from before this changed, one time. */
+    const withoutSeeds = parsed.filter(p => !(p && typeof p.id === "string" && p.id.indexOf("seed-") === 0));
+    if (withoutSeeds.length !== parsed.length) { changed = true; }
+    if (changed) savePresets(withoutSeeds);
+    return withoutSeeds;
   } catch(e) { return []; }
 }
 function savePresets(list) {
@@ -803,6 +987,8 @@ let showPresetForm = false;
 let formKind = "out";
 let presetKind = "out";
 let filterType = "all";
+let catSettingsKind = "out";
+let expandedSettingsCat = "";
 
 /* ---------- Quick add tiles ---------- */
 function renderQuickAdd() {
@@ -811,9 +997,11 @@ function renderQuickAdd() {
     el.innerHTML = `
       <div class="section-label">Quick Add</div>
       <div class="card">
-        <div class="quick-empty">No quick adds yet.<br>Create one in Settings to log a repeat expense in a single tap.</div>
+        <div class="quick-empty">No quick adds yet.<br>Create one to log a repeat expense in a single tap.</div>
+        <button class="btn-add" id="btnAddQuickAdd" style="margin-top:12px;">+ Add a Quick Add</button>
       </div>
     `;
+    document.getElementById("btnAddQuickAdd").addEventListener("click", openQuickAddCreator);
     return;
   }
   el.innerHTML = `
@@ -828,11 +1016,26 @@ function renderQuickAdd() {
           <span class="qt-amount mono" style="${kindOf(p)==='in' ? 'color:var(--green);' : ''}">${kindOf(p)==='in' ? '+' : ''}${peso(p.amount)}</span>
         </button>
       `).join("")}
+      <button class="quick-tile quick-tile-add" id="btnAddQuickAdd">
+        <span class="qt-add-plus">+</span>
+        <span class="qt-label">Add a Quick Add</span>
+      </button>
     </div>
   `;
   el.querySelectorAll("[data-preset]").forEach(btn =>
     btn.addEventListener("click", () => logPreset(btn.getAttribute("data-preset")))
   );
+  document.getElementById("btnAddQuickAdd").addEventListener("click", openQuickAddCreator);
+}
+
+/* Jumps to Settings with the new-preset form already open, since that's
+   where preset creation actually lives. */
+function openQuickAddCreator() {
+  currentView = "settings";
+  showPresetForm = true;
+  render();
+  const form = document.getElementById("pLabel");
+  if (form) form.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 function logPreset(id) {
@@ -866,23 +1069,7 @@ function subOptions(cat) {
     `<option value="${escapeHtml(s.n)}">${escapeHtml(s.n)}</option>`
   ).join("");
 }
-function subHintText(kind, cat, sub) {
-  const m = subMeta(cat, sub);
-  if (!m) return "";
-  const parts = [m.r ? "Recurring" : "One-off"];
-  if (kind === "out") {
-    parts.push(m.e ? "Essential" : "Non-essential");
-    if (NON_SPEND.indexOf(cat) > -1) parts.push("not counted as spending");
-  } else {
-    parts.push("money in");
-  }
-  return parts.join(" · ");
-}
-function refreshSubHint() {
-  const cat = document.getElementById("fCategory").value;
-  const sub = document.getElementById("fSub").value;
-  document.getElementById("subHint").textContent = subHintText(formKind, cat, sub);
-}
+function refreshSubHint() {}
 function renderAddForm(carry) {
   const el = document.getElementById("addFormCard");
   const cats = catsFor(formKind);
@@ -908,7 +1095,6 @@ function renderAddForm(carry) {
         <span class="field-row-label">${isIn ? 'Detail' : 'Subcategory'}</span>
         <select id="fSub">${subOptions(firstCat)}</select>
       </div>
-      <div class="field-hint" id="subHint"></div>
       <div class="field-row">
         <span class="field-row-label">Date</span>
         <input id="fDate" type="date" value="${todayStr()}">
@@ -1218,6 +1404,69 @@ function renderDashboard() {
         <div class="settings-sub">Savings and investments, kept out of spending totals</div>
       </div>` : ""}
     </div>
+  `;
+}
+
+/* ---------- Stats ---------- */
+function renderStats() {
+  const thisMonth = monthKey(todayStr());
+  const spend = entries.filter(isSpend);
+  const monthSpend = spend.filter(e => monthKey(e.date)===thisMonth);
+  const monthIncome = entries.filter(isIncome).filter(e => monthKey(e.date)===thisMonth);
+
+  const catMap = {};
+  const subMap = {};
+  monthSpend.forEach(e => {
+    catMap[e.category] = (catMap[e.category]||0) + e.amount;
+    const key = e.category + "|" + (e.sub || "Unspecified");
+    subMap[key] = (subMap[key]||0) + e.amount;
+  });
+  /* Derived from the data, not from the CATEGORIES list. Mapping over the
+     known list instead would silently drop any entry whose category is no
+     longer recognised, so the bars would not add up to the total shown above. */
+  const catTotals = Object.keys(catMap)
+    .map(c => ({name:c, value:catMap[c]}))
+    .filter(c => c.value > 0)
+    .sort((a,b) => b.value - a.value);
+  const maxCat = catTotals.length ? catTotals[0].value : 1;
+
+  const srcMap = {};
+  monthIncome.forEach(e => { srcMap[e.category] = (srcMap[e.category]||0) + e.amount; });
+  const srcTotals = Object.keys(srcMap)
+    .map(c => ({name:c, value:srcMap[c]}))
+    .filter(c => c.value > 0)
+    .sort((a,b) => b.value - a.value);
+  const maxSrc = srcTotals.length ? srcTotals[0].value : 1;
+
+  function subRowsFor(cat) {
+    const rows = Object.keys(subMap)
+      .filter(k => k.slice(0, cat.length+1) === cat + "|")
+      .map(k => ({name:k.slice(cat.length+1), value:subMap[k]}))
+      .sort((a,b)=>b.value-a.value);
+    if (!rows.length) return "";
+    return `<div class="sub-list">${rows.map(r=>`
+      <div class="sub-row"><span>${escapeHtml(r.name)}</span><span class="mono">${peso(r.value)}</span></div>
+    `).join("")}</div>`;
+  }
+
+  const dailyMap = {};
+  spend.forEach(e => { dailyMap[e.date] = (dailyMap[e.date]||0) + e.amount; });
+  const sortedDates = Object.keys(dailyMap).sort().slice(-30);
+  const trendData = sortedDates.map(d => ({label: d.slice(5), amount: dailyMap[d]}));
+
+  const monthMap = {};
+  entries.forEach(e => {
+    if (!isSpend(e) && !isIncome(e)) return;
+    const mk = monthKey(e.date);
+    if (!monthMap[mk]) monthMap[mk] = {inAmt:0, outAmt:0};
+    if (isIncome(e)) monthMap[mk].inAmt += e.amount;
+    else monthMap[mk].outAmt += e.amount;
+  });
+  const monthlyBars = Object.keys(monthMap).sort().slice(-6)
+    .map(k => ({month:k, inAmt:monthMap[k].inAmt, outAmt:monthMap[k].outAmt}));
+
+  const el = document.getElementById("statsView");
+  el.innerHTML = `
     ${srcTotals.length ? `
     <div class="section-label">Where It Came From</div>
     <div class="card">
@@ -1257,7 +1506,7 @@ function renderDashboard() {
   el.querySelectorAll("[data-cat-row]").forEach(btn => btn.addEventListener("click", () => {
     const c = btn.getAttribute("data-cat-row");
     expandedCat = expandedCat === c ? "" : c;
-    renderDashboard();
+    renderStats();
   }));
 }
 
@@ -1364,7 +1613,6 @@ function renderLog() {
 
 /* ---------- Settings: export / import ---------- */
 function renderSettings() {
-  const unlabeled = entries.filter(e => !e.sub).length;
   const theme = currentTheme();
   const accent = currentAccent();
   const el = document.getElementById("settingsView");
@@ -1413,11 +1661,11 @@ function renderSettings() {
           </div>
           <div class="field-row">
             <span class="field-row-label">Label</span>
-            <input id="pLabel" type="text" placeholder="${presetKind==='in' ? 'Weekly allowance' : 'Commute to school'}">
+            <input id="pLabel" type="text" placeholder="e.g. Rent">
           </div>
           <div class="field-row">
             <span class="field-row-label">Amount</span>
-            <input id="pAmount" type="number" inputmode="decimal" placeholder="${presetKind==='in' ? '500' : '36'}" step="0.01">
+            <input id="pAmount" type="number" inputmode="decimal" placeholder="0.00" step="0.01">
           </div>
           <div class="field-row">
             <span class="field-row-label">${presetKind==='in' ? 'Source' : 'Category'}</span>
@@ -1437,73 +1685,42 @@ function renderSettings() {
       ` : `<button class="link-btn" id="btnNewPreset">Add a quick add</button>`}
     </div>
 
-    <div class="section-label">Backup & Transfer</div>
+    <div class="section-label">Categories</div>
     <div class="card">
-      <div class="settings-row">
-        <div>
-          <div class="settings-label">Export data</div>
-          <div class="settings-sub">Entries, quick adds and appearance, as one JSON file</div>
-        </div>
-        <button class="btn-pill" id="btnExport">Export</button>
+      <div class="segmented" style="margin-bottom:12px;">
+        <button class="seg-btn ${catSettingsKind==='out'?'active':''}" data-cat-kind="out">Spending</button>
+        <button class="seg-btn ${catSettingsKind==='in'?'active':''}" data-cat-kind="in">Income</button>
       </div>
-      <div class="settings-row">
-        <div>
-          <div class="settings-label">Import data</div>
-          <div class="settings-sub">Merges a backup in. Nothing already here is overwritten.</div>
+      ${(catSettingsKind==='in' ? INCOME_CATEGORIES : CATEGORIES).map(c => {
+        const subs = (catSettingsKind==='in' ? INCOME_SUBCATS : SUBCATS)[c] || [];
+        const isOpen = expandedSettingsCat === c;
+        return `
+        <div class="cat-row">
+          <button class="cat-head" data-cat-toggle="${escapeHtml(c)}">
+            <span class="cat-name">
+              <span class="dot" style="background:${colorFor(c)};"></span>${escapeHtml(c)}
+              <span class="chev">${isOpen ? "▾" : "▸"}</span>
+            </span>
+            <span class="settings-sub">${subs.length} sub${subs.length===1?'':'s'}</span>
+          </button>
+          ${isOpen ? `
+            <div class="cat-edit-row">
+              <button class="link-btn" data-cat-rename="${escapeHtml(c)}">Rename</button>
+              <button class="link-btn danger" data-cat-delete="${escapeHtml(c)}">Delete category</button>
+            </div>
+            <div class="chip-list">
+              ${subs.map(s => `
+                <span class="chip sub-chip" data-sub-rename="${escapeHtml(c)}|${escapeHtml(s.n)}">
+                  ${escapeHtml(s.n)}
+                  <button class="chip-x" data-sub-delete="${escapeHtml(c)}|${escapeHtml(s.n)}" aria-label="Remove ${escapeHtml(s.n)}">✕</button>
+                </span>
+              `).join("")}
+              <button class="chip chip-add" data-sub-add="${escapeHtml(c)}">+ Add subcategory</button>
+            </div>
+          ` : ""}
         </div>
-        <button class="btn-pill" id="btnImport">Import</button>
-      </div>
-    </div>
-    <div class="section-label">Data</div>
-    <div class="card">
-      <div class="settings-row">
-        <div>
-          <div class="settings-label">${entries.length} entries stored</div>
-          <div class="settings-sub">Saved locally on this device only</div>
-        </div>
-      </div>
-      <div class="settings-row">
-        <div>
-          <div class="settings-label">Version ${BUILD}</div>
-          <div class="settings-sub">If this looks old after an update, close the app fully and reopen</div>
-        </div>
-      </div>
-      ${unlabeled ? `
-      <div class="settings-row">
-        <div>
-          <div class="settings-label">${unlabeled} without a subcategory</div>
-          <div class="settings-sub">Older entries still count in totals. Open the Log to add detail.</div>
-        </div>
-      </div>` : ""}
-      <div class="settings-row">
-        <div>
-          <div class="settings-label">Erase all entries</div>
-          <div class="settings-sub">Quick adds and appearance are kept. This can't be undone.</div>
-        </div>
-        <button class="btn-pill danger" id="btnErase">Erase</button>
-      </div>
-    </div>
-    <div class="section-label">Spending Categories</div>
-    <div class="card">
-      ${CATEGORIES.map(c => `
-        <div class="settings-row">
-          <div>
-            <div class="settings-label"><span class="dot" style="background:${CAT_COLORS[c]}; display:inline-block; margin-right:7px;"></span>${c}</div>
-            <div class="settings-sub">${(SUBCATS[c]||[]).length} subcategories${NON_SPEND.indexOf(c)>-1 ? " · not counted as spending" : ""}</div>
-          </div>
-        </div>
-      `).join("")}
-    </div>
-    <div class="section-label">Income Sources</div>
-    <div class="card">
-      ${INCOME_CATEGORIES.map(c => `
-        <div class="settings-row">
-          <div>
-            <div class="settings-label"><span class="dot" style="background:${INCOME_COLORS[c]}; display:inline-block; margin-right:7px;"></span>${escapeHtml(c)}</div>
-            <div class="settings-sub">${(INCOME_SUBCATS[c]||[]).length} types</div>
-          </div>
-        </div>
-      `).join("")}
+      `; }).join("")}
+      <button class="link-btn" id="btnAddCategory" style="margin-top:10px;">+ Add category</button>
     </div>
   `;
   el.querySelectorAll("[data-theme-opt]").forEach(btn => btn.addEventListener("click", () => {
@@ -1564,38 +1781,83 @@ function renderSettings() {
     showToast(`Saved "${label}"`);
   });
 
-  document.getElementById("btnExport").addEventListener("click", () => {
-    const payload = {
-      app: "Gastos",
-      format: 2,
-      exportedAt: new Date().toISOString(),
-      entries: entries,
-      presets: presets,
-      settings: { theme: currentTheme(), accent: currentAccent() }
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {type:"application/json"});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `gastos-backup-${todayStr()}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showToast("Exported");
-  });
-  document.getElementById("btnImport").addEventListener("click", () => {
-    document.getElementById("importFile").click();
-  });
-  document.getElementById("btnErase").addEventListener("click", () => {
-    if (confirm("Erase all entries? This cannot be undone.")) {
-      const prev = entries;
-      entries = [];
-      if (!saveEntries(entries)) { entries = prev; return; }
-      renderSettings();
-      showToast("All data erased");
+  el.querySelectorAll("[data-cat-kind]").forEach(btn => btn.addEventListener("click", () => {
+    catSettingsKind = btn.getAttribute("data-cat-kind");
+    expandedSettingsCat = "";
+    renderSettings();
+  }));
+
+  el.querySelectorAll("[data-cat-toggle]").forEach(btn => btn.addEventListener("click", () => {
+    const c = btn.getAttribute("data-cat-toggle");
+    expandedSettingsCat = expandedSettingsCat === c ? "" : c;
+    renderSettings();
+  }));
+
+  el.querySelectorAll("[data-cat-rename]").forEach(btn => btn.addEventListener("click", () => {
+    const c = btn.getAttribute("data-cat-rename");
+    const next = prompt("Rename category", c);
+    if (next === null) return;
+    if (renameCategory(catSettingsKind, c, next)) {
+      expandedSettingsCat = next.trim();
+      renderSettings(); renderAddForm(); renderQuickAdd();
+      showToast("Category renamed");
+    }
+  }));
+
+  el.querySelectorAll("[data-cat-delete]").forEach(btn => btn.addEventListener("click", () => {
+    const c = btn.getAttribute("data-cat-delete");
+    const fallback = catSettingsKind === "in" ? "Other Income" : "Other";
+    if (confirm(`Delete "${c}"? Entries using it move to "${fallback}". This can't be undone.`)) {
+      if (deleteCategory(catSettingsKind, c)) {
+        expandedSettingsCat = "";
+        renderSettings(); renderAddForm(); renderQuickAdd();
+        showToast(`"${c}" deleted`);
+      }
+    }
+  }));
+
+  const btnAddCat = document.getElementById("btnAddCategory");
+  if (btnAddCat) btnAddCat.addEventListener("click", () => {
+    const name = prompt(catSettingsKind === "in" ? "New income source name" : "New category name", "");
+    if (name === null) return;
+    if (addCategory(catSettingsKind, name)) {
+      expandedSettingsCat = name.trim();
+      renderSettings(); renderAddForm(); renderQuickAdd();
+      showToast(`Added "${name.trim()}"`);
     }
   });
+
+  el.querySelectorAll("[data-sub-rename]").forEach(chip => chip.addEventListener("click", (ev) => {
+    if (ev.target.closest("[data-sub-delete]")) return;
+    const [c, s] = chip.getAttribute("data-sub-rename").split("|");
+    const next = prompt("Rename subcategory", s);
+    if (next === null) return;
+    if (renameSubcat(catSettingsKind, c, s, next)) {
+      renderSettings(); renderAddForm();
+      showToast("Subcategory renamed");
+    }
+  }));
+
+  el.querySelectorAll("[data-sub-delete]").forEach(btn => btn.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    const [c, s] = btn.getAttribute("data-sub-delete").split("|");
+    if (confirm(`Remove "${s}"? Entries using it keep their amount but lose this subcategory.`)) {
+      if (deleteSubcat(catSettingsKind, c, s)) {
+        renderSettings(); renderAddForm();
+        showToast(`"${s}" removed`);
+      }
+    }
+  }));
+
+  el.querySelectorAll("[data-sub-add]").forEach(btn => btn.addEventListener("click", () => {
+    const c = btn.getAttribute("data-sub-add");
+    const name = prompt("New subcategory name", "");
+    if (name === null) return;
+    if (addSubcat(catSettingsKind, c, name)) {
+      renderSettings(); renderAddForm();
+      showToast(`Added "${name.trim()}"`);
+    }
+  }));
 }
 
 document.getElementById("importFile").addEventListener("change", (ev) => {
@@ -1658,20 +1920,24 @@ document.getElementById("importFile").addEventListener("change", (ev) => {
 
 /* ---------- Tabs ---------- */
 document.getElementById("tabDashboard").addEventListener("click", () => { currentView="dashboard"; render(); });
+document.getElementById("tabStats").addEventListener("click", () => { currentView="stats"; render(); });
 document.getElementById("tabLog").addEventListener("click", () => { currentView="log"; render(); });
 document.getElementById("tabSettings").addEventListener("click", () => { currentView="settings"; render(); });
 
 function render() {
   document.getElementById("tabDashboard").classList.toggle("active", currentView==="dashboard");
+  document.getElementById("tabStats").classList.toggle("active", currentView==="stats");
   document.getElementById("tabLog").classList.toggle("active", currentView==="log");
   document.getElementById("tabSettings").classList.toggle("active", currentView==="settings");
   document.getElementById("quickAddCard").style.display = currentView==="dashboard" ? "block" : "none";
   document.getElementById("addFormCard").style.display = currentView==="dashboard" ? "block" : "none";
   if (currentView==="dashboard") renderQuickAdd();
   document.getElementById("dashboardView").style.display = currentView==="dashboard" ? "block" : "none";
+  document.getElementById("statsView").style.display = currentView==="stats" ? "block" : "none";
   document.getElementById("logView").style.display = currentView==="log" ? "block" : "none";
   document.getElementById("settingsView").style.display = currentView==="settings" ? "block" : "none";
   if (currentView==="dashboard") renderDashboard();
+  else if (currentView==="stats") renderStats();
   else if (currentView==="log") renderLog();
   else renderSettings();
 }
