@@ -2092,12 +2092,22 @@ function renderSettings() {
       ` : `<button class="link-btn" id="btnNewPreset">Add a quick add</button>`}
     </div>
 
-    <div class="card" style="margin-top:12px;">
-      <div class="privacy-h2" style="margin-top:0;">Privacy</div>
-      <div class="privacy-p" style="margin-bottom:8px;">Gastos is fully offline. All entries, categories, presets and settings are stored locally in your browser (localStorage) on this device.</div>
-      <button class="data-btn" id="btnPrivacy" style="border-color:var(--border);">Privacy Policy</button>
-      <a href="./privacy.html" target="_blank" style="display:block; text-align:center; margin-top:8px; color:var(--text-secondary); font-size:12px; text-decoration:none;">Open web version</a>
-    </div>
+     <div class="section-label">Data</div>
+     <div class="card">
+       <div style="display:flex; gap:10px; margin-bottom:10px;">
+         <button class="data-btn" id="btnExport" style="flex:1; border-color:var(--border);">Export JSON</button>
+         <button class="data-btn" id="btnExportCsv" style="flex:1; border-color:var(--border);">Export CSV</button>
+         <button class="data-btn" id="btnImport" style="flex:1; border-color:var(--border);">Import JSON</button>
+       </div>
+       <div class="hint">Your data never leaves this phone except through a backup you export yourself.</div>
+     </div>
+
+     <div class="card" style="margin-top:12px;">
+       <div class="privacy-h2" style="margin-top:0;">Privacy</div>
+       <div class="privacy-p" style="margin-bottom:8px;">Gastos is fully offline. All entries, categories, presets and settings are stored locally in your browser (localStorage) on this device.</div>
+       <button class="data-btn" id="btnPrivacy" style="border-color:var(--border);">Privacy Policy</button>
+       <a href="./privacy.html" target="_blank" style="display:block; text-align:center; margin-top:8px; color:var(--text-secondary); font-size:12px; text-decoration:none;">Open web version</a>
+     </div>
 
     <div class="section-label">Categories</div>
     <div class="card">
@@ -2310,14 +2320,27 @@ function renderSettings() {
       showToast(`Added "${name.trim()}"`);
     }
   }));
-  const btnPrivacyEl=document.getElementById("btnPrivacy");
-  if(btnPrivacyEl) btnPrivacyEl.addEventListener("click", showPrivacy);
-  const expBtn = document.getElementById("btnExport");
-  const expCsvBtn = document.getElementById("btnExportCsv");
-  const impBtn = document.getElementById("btnImport");
-  if(expBtn) expBtn.addEventListener("click", ()=> hapticTap());
-  if(expCsvBtn) expCsvBtn.addEventListener("click", ()=> hapticTap());
-  if(impBtn) impBtn.addEventListener("click", ()=> hapticTap());
+   const btnPrivacyEl=document.getElementById("btnPrivacy");
+   if(btnPrivacyEl) btnPrivacyEl.addEventListener("click", showPrivacy);
+   const expBtn = document.getElementById("btnExport");
+   const expCsvBtn = document.getElementById("btnExportCsv");
+   const impBtn = document.getElementById("btnImport");
+   if(expBtn) expBtn.addEventListener("click", ()=>{ hapticTap(); doExportJson(); });
+   if(expCsvBtn) expCsvBtn.addEventListener("click", ()=>{ hapticTap(); doExportCsv(); });
+   if(impBtn) impBtn.addEventListener("click", ()=>{ hapticTap(); document.getElementById("importFile").click(); });
+
+   function doExportJson(){
+     const payload={app:"gastos",version:1,exportedAt:new Date().toISOString(),entries,presets,categories:CATEGORIES,subcategories:SUBCATS,incomeCategories:INCOME_CATEGORIES,incomeSubcats:INCOME_SUBCATS};
+     const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
+     const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=`gastos-backup-${todayStr()}.json`; a.click(); URL.revokeObjectURL(url); showToast("Exported JSON");
+   }
+   function doExportCsv(){
+     const header=["id","date","kind","amount","category","sub","note","tags"].join(",");
+     const esc=v=>{ v=String(v); return v.includes(",")||v.includes('"')||v.includes("\n") ? '"'+v.replace(/"/g,'""')+'"' : v; };
+     const lines=entries.map(r=>[r.id,r.date,r.kind,String(r.amount),r.category,r.sub||"",r.note||"",JSON.stringify(r.tags||[])]).map(a=>a.map(esc).join(","));
+     const csv=[header,...lines].join("\n");
+     const blob=new Blob([csv],{type:"text/csv"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=`gastos-${todayStr()}.csv`; a.click(); URL.revokeObjectURL(url); showToast("Exported CSV");
+   }
 }
 
 document.getElementById("importFile").addEventListener("change", (ev) => {
