@@ -25,6 +25,7 @@
 </script>
 <style>
   :root {
+    /* Mirrors constants/colors.ts LIGHT_COLORS exactly */
     --bg: #f2f2f7;
     --card: #ffffff;
     --text: #1c1c1e;
@@ -37,6 +38,7 @@
     --radius: 14px;
   }
   :root[data-theme="dark"] {
+    /* Mirrors constants/colors.ts DARK_COLORS exactly */
     --bg: #000000;
     --card: #1c1c1e;
     --text: #f2f2f7;
@@ -69,13 +71,15 @@
   button { cursor: pointer; -webkit-appearance: none; appearance: none; }
   .wrap { max-width: 560px; margin: 0 auto; padding: 0 0 100px; }
 
-  /* Nav — mirrors React Native Tabs _layout tabBarContainer + segmented */
+  /* Nav — mirrors React Native Tabs _layout.tsx tabBarContainer exactly:
+     paddingHorizontal 16, paddingTop 4, paddingBottom 16, segmented radius14 padding2,
+     segBtn flex1 paddingVertical12 paddingHorizontal8 radius12, segBtnText 11/600/-0.01, active bg var(--card) */
   .nav {
     position: sticky; top: 0; z-index: 10;
     background: color-mix(in srgb, var(--bg) 85%, transparent);
     backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
     border-bottom: 0.5px solid var(--border);
-    padding: calc(10px + env(safe-area-inset-top)) 16px 12px;
+    padding: calc(4px + env(safe-area-inset-top)) 16px 16px;
   }
   .nav-title { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 12px; }
   .nav .segmented {
@@ -113,8 +117,8 @@
   }
   .section-label:first-child { margin-top: 4px; }
 
-  /* Add form amount */
-  .amount-input-row { display: flex; align-items: baseline; gap: 4px; padding: 4px 0 14px; border-bottom: 0.5px solid var(--border); margin-bottom: 14px; }
+  /* Add form amount — mirrors add.tsx amountInput: fontSize34 weight700 borderBottom1.5 paddingBottom8 marginBottom20 */
+  .amount-input-row { display: flex; align-items: baseline; gap: 4px; padding: 4px 0 8px; border-bottom: 1.5px solid var(--border); margin-bottom: 20px; }
   .peso-sign { font-size: 28px; font-weight: 600; color: var(--text-secondary); }
   #fAmount {
     border: none; background: transparent; font-size: 34px; font-weight: 700;
@@ -156,7 +160,7 @@
   .dropdown-content {
     margin-top: 6px; border: 0.5px solid var(--border); border-radius: 14px;
     background: var(--card); overflow: hidden;
-    box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.15);
   }
   :root[data-theme="dark"] .dropdown-content { box-shadow: 0 6px 16px rgba(0,0,0,0.3); }
   @media (prefers-color-scheme: dark) {
@@ -361,8 +365,8 @@
   }
   .onboarding-skip { font-size: 15px; font-weight: 600; color: var(--text-secondary); background: transparent; border: none; padding: 8px 4px; }
   .onboarding-dots { display: flex; gap: 8px; align-items: center; }
-  .onboarding-dot { width: 8px; height: 8px; border-radius: 4px; background: var(--border); transition: background 0.2s; cursor: pointer; border: none; padding: 0; }
-  .onboarding-dot.active { background: var(--accent); }
+  .onboarding-dot { width: 8px; height: 8px; border-radius: 4px; background: var(--border); opacity: 0.9; transition: background 0.2s, opacity 0.2s; cursor: pointer; border: none; padding: 0; }
+  .onboarding-dot.active { background: var(--accent); opacity: 1; }
   .onboarding-content { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 16px; padding-bottom: 20px; min-height: 0; }
   .onboarding-iconWrap {
     width: 64px; height: 64px; border-radius: 18px; border: 0.5px solid var(--border);
@@ -497,10 +501,10 @@
 <div class="toast" id="toast"></div>
 
 <script>
-/* Haptics — mirrors lib/haptics.ts via navigator.vibrate */
+/* Haptics — mirrors lib/haptics.ts via navigator.vibrate: hapticTap=10, hapticSuccess=[10,30,10], hapticWarning=[20,50,20] */
 function hapticTap(){ try{ if(navigator.vibrate) navigator.vibrate(10); }catch(e){} }
 function hapticSuccess(){ try{ if(navigator.vibrate) navigator.vibrate([10,30,10]); }catch(e){} }
-function hapticWarning(){ try{ if(navigator.vibrate) navigator.vibrate([20,30,20]); }catch(e){} }
+function hapticWarning(){ try{ if(navigator.vibrate) navigator.vibrate([20,50,20]); }catch(e){} }
 
 /* Onboarding — mirrors app/onboarding.tsx */
 const ONBOARDING_SLIDES = [
