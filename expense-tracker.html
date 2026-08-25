@@ -36,7 +36,6 @@
     --red: #ff3b30;
     --radius: 14px;
   }
-  /* Manual dark. Wins over the system preference. */
   :root[data-theme="dark"] {
     --bg: #000000;
     --card: #1c1c1e;
@@ -46,7 +45,6 @@
     --accent: #ff9f0a;
     --accent-soft: rgba(255,159,10,0.15);
   }
-  /* System dark, unless the user explicitly chose Light. */
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #000000;
@@ -69,17 +67,27 @@
   input, select, button, textarea { font-family: inherit; }
   input::placeholder { color: var(--text-secondary); }
   button { cursor: pointer; -webkit-appearance: none; appearance: none; }
-  .wrap { max-width: 560px; margin: 0 auto; padding: 0 0 40px; }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 0 0 100px; }
 
-  /* Nav */
+  /* Nav — mirrors React Native Tabs _layout tabBarContainer + segmented */
   .nav {
     position: sticky; top: 0; z-index: 10;
     background: color-mix(in srgb, var(--bg) 85%, transparent);
     backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
     border-bottom: 0.5px solid var(--border);
-    padding: calc(14px + env(safe-area-inset-top)) 20px 12px;
+    padding: calc(10px + env(safe-area-inset-top)) 16px 12px;
   }
   .nav-title { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 12px; }
+  .nav .segmented {
+    display: flex; background: var(--border); border-radius: 14px; padding: 2px;
+  }
+  .nav .seg-btn {
+    flex: 1; border: none; background: transparent; padding: 12px 8px;
+    font-size: 11px; font-weight: 600; letter-spacing: -0.01em; color: var(--text-secondary);
+    border-radius: 12px; transition: all 0.2s; min-width: 0;
+  }
+  .nav .seg-btn.active { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  /* Inner segmented (forms, stats, log) — native add.tsx / stats / log radius 9 */
   .segmented {
     display: flex; background: var(--border); border-radius: 9px; padding: 2px;
   }
@@ -89,21 +97,23 @@
     border-radius: 7px; transition: all 0.2s;
   }
   .seg-btn.active { background: var(--card); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+  .seg-btn:active { opacity: 0.7; }
 
   .content { padding: 16px 16px 0; }
 
-  /* Cards */
+  /* Cards — native border hairline + radius 14 */
   .card {
     background: var(--card); border-radius: var(--radius);
     padding: 16px; margin-bottom: 12px;
+    border: 0.5px solid var(--border);
   }
   .section-label {
-    font-size: 12px; font-weight: 600; color: var(--text-secondary);
-    text-transform: uppercase; letter-spacing: 0.03em; margin: 20px 4px 8px;
+    font-size: 13px; font-weight: 600; color: var(--text-secondary);
+    margin: 20px 4px 8px;
   }
   .section-label:first-child { margin-top: 4px; }
 
-  /* Add form */
+  /* Add form amount */
   .amount-input-row { display: flex; align-items: baseline; gap: 4px; padding: 4px 0 14px; border-bottom: 0.5px solid var(--border); margin-bottom: 14px; }
   .peso-sign { font-size: 28px; font-weight: 600; color: var(--text-secondary); }
   #fAmount {
@@ -118,15 +128,10 @@
   .field-row-label { font-size: 15px; color: var(--text); }
   .field-row select, .field-row input {
     border: none; background: transparent; color: var(--text-secondary);
-    /* 16px minimum, or iOS zooms the whole page when the field gets focus. */
     font-size: 16px; text-align: right; outline: none; max-width: 62%;
   }
   .field-row input[type="date"] { color: var(--text-secondary); }
   .field-row input::placeholder { text-align: right; }
-  .field-hint {
-    font-size: 12px; color: var(--text-secondary); text-align: right;
-    padding: 0 0 10px; margin-top: -6px;
-  }
   .btn-add {
     width: 100%; margin-top: 14px; background: var(--accent); border: none;
     border-radius: 12px; padding: 13px; color: white; font-weight: 600; font-size: 16px;
@@ -134,12 +139,58 @@
   .btn-add:active { opacity: 0.7; }
   .btn-add:disabled { opacity: 0.35; }
 
+  /* Dropdown — mirrors React Native dropdownStyles (theme-aware via var(--card) etc) */
+  .dropdown-wrapper { margin-bottom: 20px; }
+  .dropdown-label { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px; margin-top: 4px; }
+  .dropdown-btn {
+    display: flex; flex-direction: row; justify-content: space-between; align-items: center;
+    padding: 14px 14px; border: 0.5px solid var(--border); border-radius: 14px;
+    background: var(--card); width: 100%; text-align: left; gap: 12px;
+    transition: border-color 0.15s;
+  }
+  .dropdown-btn:active { opacity: 0.8; }
+  .dropdown-btn-inner { flex: 1; min-width: 0; }
+  .dropdown-btn-text { font-size: 15px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dropdown-arrow { font-size: 12px; font-weight: 600; color: var(--text-secondary); transition: transform 0.2s; display: inline-block; }
+  .dropdown-arrow.open { transform: rotate(180deg); }
+  .dropdown-content {
+    margin-top: 6px; border: 0.5px solid var(--border); border-radius: 14px;
+    background: var(--card); overflow: hidden;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+  }
+  :root[data-theme="dark"] .dropdown-content { box-shadow: 0 6px 16px rgba(0,0,0,0.3); }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .dropdown-content { box-shadow: 0 6px 16px rgba(0,0,0,0.3); }
+  }
+  .dropdown-search {
+    width: 100%; border: none; border-bottom: 0.5px solid var(--border);
+    padding: 10px 14px; font-size: 14px; color: var(--text); background: var(--card); outline: none;
+  }
+  .dropdown-search::placeholder { color: var(--text-secondary); }
+  .dropdown-list { max-height: 260px; overflow-y: auto; }
+  .dropdown-list.sub { max-height: 200px; }
+  .dropdown-item {
+    padding: 13px 14px; border-bottom: 0.5px solid var(--border); cursor: pointer;
+    background: var(--card); transition: background 0.12s;
+  }
+  .dropdown-item:last-child { border-bottom: none; }
+  .dropdown-item.active { background: var(--accent-soft); }
+  .dropdown-item:active { opacity: 0.7; }
+  .dropdown-item-row { display: flex; align-items: center; }
+  .dropdown-dot { width: 10px; height: 10px; border-radius: 5px; margin-right: 12px; flex-shrink: 0; }
+  .dropdown-item-text { font-size: 15px; font-weight: 500; color: var(--text); }
+  .dropdown-item.active .dropdown-item-text { color: var(--accent); font-weight: 600; }
+  .dropdown-item-sub { font-size: 12px; color: var(--text-secondary); margin-top: 3px; margin-left: 22px; }
+  .dropdown-item-badges { display: flex; gap: 6px; margin-left: 22px; margin-top: 2px; }
+  .dropdown-badge { font-size: 11px; color: var(--text-secondary); }
+
   /* Stats */
-  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .stat-card { background: var(--card); border-radius: var(--radius); padding: 16px; }
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+  .stat-card { background: var(--card); border-radius: var(--radius); padding: 14px; border: 0.5px solid var(--border); }
   .stat-card.wide { grid-column: 1 / -1; }
-  .stat-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 6px; }
-  .stat-value { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
+  .stat-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 4px; }
+  .stat-value { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+  .stat-sub { font-size: 12px; color: var(--text-secondary); margin-top: 4px; line-height: 16px; }
 
   .chart-title { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
   svg.chart { width: 100%; height: auto; display: block; }
@@ -149,14 +200,14 @@
   .cat-row:last-child { margin-bottom: 0; }
   .cat-head {
     display: flex; justify-content: space-between; align-items: center;
-    font-size: 14px; margin-bottom: 5px; background: transparent;
+    font-size: 14px; margin-bottom: 6px; background: transparent;
     border: none; width: 100%; padding: 0; color: var(--text); text-align: left;
   }
   .cat-name { display: flex; align-items: center; gap: 8px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
   .chev { color: var(--text-secondary); font-size: 11px; margin-left: 6px; }
-  .bar-track { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
-  .bar-fill { height: 100%; border-radius: 3px; }
+  .bar-track { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; }
   .sub-list { margin: 10px 0 2px 16px; padding-left: 10px; border-left: 1.5px solid var(--border); }
   .sub-row {
     display: flex; justify-content: space-between; align-items: baseline;
@@ -168,19 +219,19 @@
   .split-block { margin-bottom: 16px; }
   .split-block:last-child { margin-bottom: 0; }
   .split-title { font-size: 13px; font-weight: 600; margin-bottom: 7px; }
-  .split-track { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--border); }
-  .split-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
+  .split-track { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: var(--border); }
+  .split-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
   .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
 
-  /* Filters */
-  .filter-row { display: flex; gap: 8px; margin-bottom: 12px; overflow-x: auto; padding-bottom: 2px; }
+  /* Filters — mirrors log.tsx chips */
+  .filter-row { display: flex; gap: 8px; margin-bottom: 10px; overflow-x: auto; padding-bottom: 2px; flex-wrap: nowrap; }
   .chip {
     flex-shrink: 0; padding: 6px 14px; border-radius: 16px;
     background: var(--card); color: var(--text); font-size: 13px; font-weight: 500;
-    border: 0.5px solid var(--border);
+    border: 1px solid var(--border);
   }
   .chip.active { background: var(--accent); color: white; border-color: var(--accent); }
-  .filter-summary { font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; padding: 0 4px; }
+  .filter-summary { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; padding: 0 4px; }
 
   .entry-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 0.5px solid var(--border); }
   .entry-row:last-child { border-bottom: none; }
@@ -188,12 +239,13 @@
   .entry-meta { font-size: 12px; color: var(--text-secondary); display: flex; gap: 6px; margin-top: 2px; flex-wrap: wrap; }
   .tag-pill { color: var(--accent); }
   .del-btn {
-    background: transparent; border: none; color: var(--red); font-size: 20px;
+    background: transparent; border: none; color: var(--text-secondary); font-size: 14px;
     line-height: 1; padding: 11px 8px; margin: -11px -8px -11px 0; flex-shrink: 0;
   }
   .del-btn:active { opacity: 0.5; }
+  /* keep red for destructive in settings quick adds */
+  .del-btn.danger { color: var(--red); font-size: 18px; }
 
-  /* -webkit-tap-highlight-color is off, so give keyboard users something. */
   button:focus-visible, select:focus-visible, input:focus-visible {
     outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px;
   }
@@ -204,6 +256,7 @@
   .entry-amount { font-size: 15px; font-weight: 600; white-space: nowrap; }
 
   .empty { color: var(--text-secondary); font-size: 14px; text-align: center; padding: 36px 16px; }
+  .empty-inline { color: var(--text-secondary); font-size: 14px; }
 
   /* Settings row / export-import */
   .settings-row {
@@ -220,12 +273,18 @@
   }
   .btn-pill.danger { background: rgba(255,59,48,0.1); color: var(--red); }
   #importFile { display: none; }
+  .data-btn-row { display: flex; gap: 10px; margin-bottom: 10px; }
+  .data-btn {
+    flex: 1; border: 1px solid var(--border); border-radius: 10px; padding: 10px 0;
+    background: transparent; color: var(--accent); font-weight: 600; font-size: 14px; text-align: center;
+  }
+  .data-btn:active { opacity: 0.6; }
 
   /* Quick add */
-  .quick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .quick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 20px; }
   .quick-tile {
     background: var(--card); border: 0.5px solid var(--border); border-radius: 12px;
-    padding: 12px 13px; text-align: left; color: var(--text);
+    padding: 13px; text-align: left; color: var(--text);
     display: flex; flex-direction: column; gap: 6px; transition: transform 0.12s, opacity 0.12s;
   }
   .quick-tile:active { transform: scale(0.97); opacity: 0.75; }
@@ -268,19 +327,97 @@
 
   /* Appearance */
   .settings-row.stack { display: block; }
-  .swatch-row { display: flex; gap: 12px; overflow-x: auto; padding: 2px 0; }
+  .swatch-row { display: flex; gap: 10px; flex-wrap: wrap; padding: 2px 0; }
   .swatch {
-    flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%;
-    border: none; padding: 0; position: relative;
+    flex-shrink: 0; width: 32px; height: 32px; border-radius: 16px;
+    border: 2px solid transparent; padding: 0; position: relative;
   }
-  .swatch.active { box-shadow: 0 0 0 2.5px var(--bg), 0 0 0 4px var(--text); }
-  .swatch-label { font-size: 11px; color: var(--text-secondary); margin-top: 8px; }
+  .swatch.active { border-color: var(--text); }
+
+  /* FAB — dashboard only, mirrors native FAB centered above tab bar */
+  .fab-wrap {
+    position: fixed; left: 0; right: 0; bottom: calc(24px + env(safe-area-inset-bottom));
+    display: flex; justify-content: center; pointer-events: none; z-index: 9;
+  }
+  .fab {
+    width: 64px; height: 64px; border-radius: 32px; border: 4px solid var(--bg);
+    background: var(--accent); display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.25); pointer-events: auto; border-style: solid;
+    font-size: 34px; font-weight: 400; color: white; line-height: 1; padding-bottom: 2px;
+    transition: transform 0.12s;
+  }
+  .fab:active { transform: scale(0.94); }
+
+  /* Onboarding overlay */
+  .onboarding-overlay {
+    position: fixed; inset: 0; z-index: 1000; background: var(--bg);
+    display: flex; flex-direction: column; padding: 0 20px;
+    padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);
+    overflow-y: auto;
+  }
+  .onboarding-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding-top: 8px; padding-bottom: 12px;
+  }
+  .onboarding-skip { font-size: 15px; font-weight: 600; color: var(--text-secondary); background: transparent; border: none; padding: 8px 4px; }
+  .onboarding-dots { display: flex; gap: 8px; align-items: center; }
+  .onboarding-dot { width: 8px; height: 8px; border-radius: 4px; background: var(--border); transition: background 0.2s; cursor: pointer; border: none; padding: 0; }
+  .onboarding-dot.active { background: var(--accent); }
+  .onboarding-content { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 16px; padding-bottom: 20px; min-height: 0; }
+  .onboarding-iconWrap {
+    width: 64px; height: 64px; border-radius: 18px; border: 0.5px solid var(--border);
+    background: var(--card); display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+  }
+  .onboarding-icon { font-size: 28px; font-weight: 700; color: var(--accent); }
+  .onboarding-title { font-size: 28px; font-weight: 700; letter-spacing: -0.4px; margin-top: 4px; color: var(--text); }
+  .onboarding-body { font-size: 15px; line-height: 22px; color: var(--text-secondary); }
+  .onboarding-card {
+    border-radius: 14px; border: 0.5px solid var(--border); background: var(--card);
+    padding: 14px; display: flex; flex-direction: column; gap: 10px; margin-top: 4px;
+  }
+  .onboarding-bulletRow { display: flex; align-items: center; gap: 10px; }
+  .onboarding-bulletDot { width: 8px; height: 8px; border-radius: 4px; background: var(--accent); flex-shrink: 0; }
+  .onboarding-bulletText { font-size: 13px; font-weight: 500; color: var(--text); flex: 1; }
+  .onboarding-footer {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 0; gap: 12px;
+  }
+  .onboarding-step { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+  .onboarding-btn {
+    border-radius: 14px; padding: 14px 28px; background: var(--accent); color: white;
+    font-weight: 700; font-size: 15px; border: none; box-shadow: 0 3px 8px rgba(0,0,0,0.12);
+    transition: transform 0.12s;
+  }
+  .onboarding-btn:active { transform: scale(0.98); }
+
+  /* Privacy overlay */
+  .privacy-overlay {
+    position: fixed; inset: 0; z-index: 999; background: var(--bg);
+    display: flex; flex-direction: column; overflow-y: auto;
+    padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);
+  }
+  .privacy-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 20px; flex-shrink: 0;
+  }
+  .privacy-back { font-size: 15px; font-weight: 600; color: var(--accent); background: transparent; border: none; }
+  .privacy-title { font-size: 17px; font-weight: 700; color: var(--text); }
+  .privacy-body { padding: 0 20px 40px; }
+  .privacy-updated { font-size: 12px; color: var(--text-secondary); margin-bottom: 16px; margin-top: 4px; }
+  .privacy-h2 { font-size: 15px; font-weight: 700; color: var(--text); margin-top: 18px; margin-bottom: 6px; }
+  .privacy-p { font-size: 14px; line-height: 20px; color: var(--text-secondary); }
+  .privacy-card {
+    border-radius: 14px; border: 0.5px solid var(--border); background: var(--card);
+    padding: 14px; margin-top: 20px;
+  }
+  .privacy-cardText { font-size: 13px; line-height: 18px; color: var(--text-secondary); text-align: center; }
 
   .toast {
     position: fixed; bottom: calc(24px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
     background: var(--text); color: var(--bg); padding: 10px 18px; border-radius: 10px;
     font-size: 14px; font-weight: 500; opacity: 0; transition: opacity 0.25s;
-    pointer-events: none; z-index: 100; white-space: nowrap;
+    pointer-events: none; z-index: 1100; white-space: nowrap;
     display: flex; align-items: center; gap: 16px; max-width: calc(100vw - 32px);
   }
   .toast.show { opacity: 1; }
@@ -315,10 +452,131 @@
   </div>
 </div>
 
+<div class="fab-wrap" id="fabWrap" style="display:none;">
+  <button class="fab" id="fabBtn" aria-label="Add entry">+</button>
+</div>
+
+<!-- Onboarding overlay -->
+<div id="onboardingOverlay" class="onboarding-overlay" style="display:none;">
+  <div class="onboarding-header">
+    <button class="onboarding-skip" id="onboardingSkip">Skip</button>
+    <div class="onboarding-dots" id="onboardingDots"></div>
+    <div style="width:40px;"></div>
+  </div>
+  <div class="onboarding-content" id="onboardingContent"></div>
+  <div class="onboarding-footer">
+    <span class="onboarding-step" id="onboardingStep"></span>
+    <button class="onboarding-btn" id="onboardingNext">Next</button>
+  </div>
+</div>
+
+<!-- Privacy overlay -->
+<div id="privacyOverlay" class="privacy-overlay" style="display:none;">
+  <div class="privacy-header">
+    <button class="privacy-back" id="privacyBack">‹ Back</button>
+    <span class="privacy-title">Privacy Policy</span>
+    <span style="width:44px;"></span>
+  </div>
+  <div class="privacy-body">
+    <div class="privacy-updated">Last updated: 2026-08-25</div>
+    <div class="privacy-h2">No data collection</div>
+    <div class="privacy-p">Gastos is fully offline. All entries, categories, presets and settings are stored locally in your browser (localStorage) on this device. There is no account, no backend, no analytics, no ads, and no trackers.</div>
+    <div class="privacy-h2">Backups</div>
+    <div class="privacy-p">JSON/CSV export creates a file you choose to save or share. Import merges by ID and never uploads data anywhere.</div>
+    <div class="privacy-h2">Crash reporting</div>
+    <div class="privacy-p">Disabled by default. If you configure Sentry, only anonymized crash reports are sent, with no financial data.</div>
+    <div class="privacy-h2">Permissions</div>
+    <div class="privacy-p">File access only when you explicitly export or import a backup.</div>
+    <div class="privacy-h2">Contact</div>
+    <div class="privacy-p">Via App Store Connect or github.com/dabiddddd/Gastos</div>
+    <div class="privacy-card"><div class="privacy-cardText">Your data never leaves this phone except through a backup you export yourself.</div></div>
+  </div>
+</div>
+
 <input type="file" id="importFile" accept="application/json">
 <div class="toast" id="toast"></div>
 
 <script>
+/* Haptics — mirrors lib/haptics.ts via navigator.vibrate */
+function hapticTap(){ try{ if(navigator.vibrate) navigator.vibrate(10); }catch(e){} }
+function hapticSuccess(){ try{ if(navigator.vibrate) navigator.vibrate([10,30,10]); }catch(e){} }
+function hapticWarning(){ try{ if(navigator.vibrate) navigator.vibrate([20,30,20]); }catch(e){} }
+
+/* Onboarding — mirrors app/onboarding.tsx */
+const ONBOARDING_SLIDES = [
+  { icon:"₱", title:"Track every peso", body:"Log Money In and Out in seconds. Quick Add tiles let you log repeat expenses with one tap.", bullets:["Dashboard shows In, Out, and Left this month","FAB + Quick Add for instant entry","Everything stays on your phone"] },
+  { icon:"▭", title:"Log it right", body:"Categories and subcategories are dropdowns — clean, searchable, theme-aware. No more scrolling through chips.", bullets:["Source / Category + Subcategory dropdowns","Amount, date picker, note, and tags","Save as Quick Add for repeats"] },
+  { icon:"▦", title:"See where it goes", body:"Stats brings your spending to life with line charts, breakdowns, and monthly In vs Out.", bullets:["This Week / Month / Year spend trend","Where It Went by category → sub","Essential vs recurring splits"] },
+  { icon:"⚙", title:"You stay in control", body:"Your data, your rules. Light/dark/system, 8 accents, and full category control.", bullets:["Rename, add, delete categories & subs","Export JSON / CSV, import merges by ID","Log filters by type, category, sub, tag"] },
+];
+let onboardingIdx = 0;
+function hasSeenOnboarding(){
+  try{
+    return localStorage.getItem("gastos_has_seen_onboarding")==="1" || localStorage.getItem("has_seen_onboarding")==="1";
+  }catch(e){ return true; }
+}
+function markOnboardingSeen(){
+  try{
+    localStorage.setItem("gastos_has_seen_onboarding","1");
+    localStorage.setItem("has_seen_onboarding","1");
+  }catch(e){}
+}
+function renderOnboarding(){
+  const slide = ONBOARDING_SLIDES[onboardingIdx];
+  const last = onboardingIdx === ONBOARDING_SLIDES.length-1;
+  document.getElementById("onboardingDots").innerHTML = ONBOARDING_SLIDES.map((_,i)=>
+    `<button class="onboarding-dot ${i===onboardingIdx?'active':''}" data-idx="${i}" aria-label="Go to slide ${i+1}"></button>`
+  ).join("");
+  document.getElementById("onboardingContent").innerHTML = `
+    <div class="onboarding-iconWrap"><span class="onboarding-icon">${slide.icon}</span></div>
+    <div class="onboarding-title">${slide.title}</div>
+    <div class="onboarding-body">${slide.body}</div>
+    <div class="onboarding-card">
+      ${slide.bullets.map(b=>`<div class="onboarding-bulletRow"><span class="onboarding-bulletDot"></span><span class="onboarding-bulletText">${b}</span></div>`).join("")}
+    </div>`;
+  document.getElementById("onboardingStep").textContent = (onboardingIdx+1)+" / "+ONBOARDING_SLIDES.length;
+  document.getElementById("onboardingNext").textContent = last ? "Get Started" : "Next";
+  document.querySelectorAll(".onboarding-dot").forEach(btn=> btn.addEventListener("click", ()=>{
+    const i=parseInt(btn.getAttribute("data-idx"));
+    if(i===onboardingIdx) return;
+    hapticTap(); onboardingIdx=i; renderOnboarding();
+  }));
+}
+function showOnboarding(){
+  document.getElementById("onboardingOverlay").style.display="flex";
+  renderOnboarding();
+}
+function hideOnboarding(){
+  document.getElementById("onboardingOverlay").style.display="none";
+}
+function initOnboarding(){
+  const skipBtn=document.getElementById("onboardingSkip");
+  const nextBtn=document.getElementById("onboardingNext");
+  if(skipBtn) skipBtn.addEventListener("click", ()=>{ hapticTap(); markOnboardingSeen(); hideOnboarding(); });
+  if(nextBtn) nextBtn.addEventListener("click", ()=>{
+    const last = onboardingIdx===ONBOARDING_SLIDES.length-1;
+    if(last){ hapticSuccess(); markOnboardingSeen(); hideOnboarding(); }
+    else { hapticTap(); onboardingIdx++; renderOnboarding(); }
+  });
+}
+
+/* Privacy modal */
+function showPrivacy(){ document.getElementById("privacyOverlay").style.display="flex"; hapticTap(); }
+function hidePrivacy(){ document.getElementById("privacyOverlay").style.display="none"; }
+
+/* Dropdown helpers — mirrors app/add.tsx DropdownArrow + DropdownMenu */
+let addFormCatOpen=false;
+let addFormSubOpen=false;
+let presetCatOpen=false;
+let presetSubOpen=false;
+let addFormCatValue="";
+let addFormSubValue="";
+let presetCatValue="";
+let presetSubValue="";
+let statsRange="month"; // week|month|year mirrors Stats SpendRange
+
+function dropdownArrowHTML(open){ return `<span class="dropdown-arrow ${open?'open':''}">▼</span>`; }
+
 /* ============================================================
    Categories and subcategories
    Each subcategory carries two independent flags:
@@ -989,6 +1247,15 @@ let presetKind = "out";
 let filterType = "all";
 let catSettingsKind = "out";
 let expandedSettingsCat = "";
+// init preset dropdown defaults
+try{
+  presetCatValue = catsFor(presetKind)[0]||"";
+  const _ps = ALL_SUBCATS[presetCatValue]||[];
+  presetSubValue = _ps[0]?.n||"";
+  addFormCatValue = catsFor(formKind)[0]||"";
+  const _as = ALL_SUBCATS[addFormCatValue]||[];
+  addFormSubValue = _as[0]?.n||"";
+}catch(e){}
 
 /* ---------- Quick add tiles ---------- */
 function renderQuickAdd() {
@@ -1054,6 +1321,7 @@ function logPreset(id) {
   };
   entries.unshift(entry);
   if (!saveEntries(entries)) { entries.shift(); return; }
+  hapticSuccess();
   render();
   showToast(`${kindOf(p)==='in' ? 'Received' : 'Spent'} ${peso(p.amount)} · ${p.label}`, () => {
     const prev = entries;
@@ -1070,31 +1338,82 @@ function subOptions(cat) {
   ).join("");
 }
 function refreshSubHint() {}
+function buildCategoryDropdownHTML(cats, selected, open, type, filterText){
+  const ft = (filterText||"").toLowerCase();
+  const filtered = ft ? cats.filter(c=> c.toLowerCase().includes(ft)) : cats;
+  const items = filtered.map(c=>{
+    const active = c===selected;
+    const color = ALL_COLORS[c] || CAT_COLORS.Other || "#8e8e93";
+    const subs = ALL_SUBCATS[c] || [];
+    return `<div class="dropdown-item ${active?'active':''}" data-cat="${escapeHtml(c)}" data-type="${type}">
+      <div class="dropdown-item-row"><span class="dropdown-dot" style="background:${color};"></span><span class="dropdown-item-text">${escapeHtml(c)}</span></div>
+      ${subs.length?`<div class="dropdown-item-sub">${subs.length} sub${subs.length>1?'s':''}</div>`:''}
+    </div>`;
+  }).join("") || `<div style="padding:14px; color:var(--text-secondary); font-size:13px;">No matches</div>`;
+  return `<div class="dropdown-content" style="display:${open?'block':'none'};">
+    <input class="dropdown-search" placeholder="Search..." value="${escapeHtml(filterText||'')}" data-search="${type}" autocomplete="off">
+    <div class="dropdown-list">${items}</div>
+  </div>`;
+}
+function buildSubDropdownHTML(cat, selected, open, type, filterText){
+  const list = ALL_SUBCATS[cat] || [];
+  const ft = (filterText||"").toLowerCase();
+  const filtered = ft ? list.filter(s=> s.n.toLowerCase().includes(ft)) : list;
+  const color = ALL_COLORS[cat] || "#8e8e93";
+  const items = filtered.map(s=>{
+    const active = s.n===selected;
+    return `<div class="dropdown-item ${active?'active':''}" data-sub="${escapeHtml(s.n)}" data-type="${type}">
+      <div class="dropdown-item-row"><span class="dropdown-item-text">${escapeHtml(s.n)}</span></div>
+      ${(s.r||s.e)?`<div class="dropdown-item-badges">${s.r?'<span class="dropdown-badge">↻</span>':''}${s.e?'<span class="dropdown-badge">★</span>':''}</div>`:''}
+    </div>`;
+  }).join("") || `<div style="padding:14px; color:var(--text-secondary); font-size:13px;">No matches</div>`;
+  return `<div class="dropdown-content" style="display:${open?'block':'none'};">
+    <input class="dropdown-search" placeholder="Search..." value="${escapeHtml(filterText||'')}" data-search="${type}-sub" autocomplete="off">
+    <div class="dropdown-list sub">${items}</div>
+  </div>`;
+}
 function renderAddForm(carry) {
   const el = document.getElementById("addFormCard");
   const cats = catsFor(formKind);
   const firstCat = cats[0];
+  // init values
+  if(!addFormCatValue || cats.indexOf(addFormCatValue)===-1) addFormCatValue = firstCat || "";
+  const activeCatName = addFormCatValue;
+  const subList = ALL_SUBCATS[activeCatName] || [];
+  if(subList.length && (!addFormSubValue || !subList.some(s=>s.n===addFormSubValue))){
+    addFormSubValue = subList[0]?.n || "";
+  }
+  if(!subList.length) addFormSubValue="";
   const isIn = formKind === "in";
+  const hasSubs = subList.length>0;
   el.innerHTML = `
     <div class="card">
-      <div class="segmented" style="margin-bottom:14px;">
+      <div class="segmented" style="margin-bottom:20px;">
         <button class="seg-btn ${isIn?'':'active'}" data-kind="out">Money Out</button>
         <button class="seg-btn ${isIn?'active':''}" data-kind="in">Money In</button>
       </div>
+      <div class="dropdown-label" style="margin-top:4px;">Amount</div>
       <div class="amount-input-row">
         <span class="peso-sign" ${isIn?'style="color:var(--green);"':''}>${isIn?'+₱':'₱'}</span>
         <input id="fAmount" type="number" inputmode="decimal" placeholder="0.00" step="0.01" ${isIn?'style="color:var(--green);"':''}>
       </div>
-      <div class="field-row">
-        <span class="field-row-label">${isIn ? 'Source' : 'Category'}</span>
-        <select id="fCategory">
-          ${cats.map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("")}
-        </select>
+      <div class="dropdown-label">${isIn ? 'Source' : 'Category'}</div>
+      <div class="dropdown-wrapper">
+        <button class="dropdown-btn" id="fCategoryBtn" aria-label="Select category" aria-expanded="${addFormCatOpen}">
+          <span class="dropdown-btn-inner"><span class="dropdown-btn-text">${escapeHtml(addFormCatValue || firstCat || "Select category")}</span></span>
+          ${dropdownArrowHTML(addFormCatOpen)}
+        </button>
+        ${buildCategoryDropdownHTML(cats, addFormCatValue, addFormCatOpen, "addCat", window._addCatFilter||"")}
       </div>
-      <div class="field-row">
-        <span class="field-row-label">${isIn ? 'Detail' : 'Subcategory'}</span>
-        <select id="fSub">${subOptions(firstCat)}</select>
-      </div>
+      ${hasSubs ? `
+      <div class="dropdown-label">${isIn ? 'Detail' : 'Subcategory'}</div>
+      <div class="dropdown-wrapper">
+        <button class="dropdown-btn" id="fSubBtn" aria-label="Select subcategory" aria-expanded="${addFormSubOpen}">
+          <span class="dropdown-btn-inner"><span class="dropdown-btn-text">${escapeHtml(addFormSubValue || subList[0]?.n || "Select subcategory")}</span></span>
+          ${dropdownArrowHTML(addFormSubOpen)}
+        </button>
+        ${buildSubDropdownHTML(activeCatName, addFormSubValue, addFormSubOpen, "addSub", window._addSubFilter||"")}
+      </div>` : ''}
       <div class="field-row">
         <span class="field-row-label">Date</span>
         <input id="fDate" type="date" value="${todayStr()}">
@@ -1115,8 +1434,7 @@ function renderAddForm(carry) {
   el.querySelectorAll("[data-kind]").forEach(btn => btn.addEventListener("click", () => {
     const k = btn.getAttribute("data-kind");
     if (k === formKind) return;
-    /* Keep what has already been typed. Only category and subcategory have to
-       reset, since the two directions do not share a taxonomy. */
+    hapticTap();
     const keep = {
       amount: document.getElementById("fAmount").value,
       date: document.getElementById("fDate").value,
@@ -1124,6 +1442,13 @@ function renderAddForm(carry) {
       tags: document.getElementById("fTags").value
     };
     formKind = k;
+    addFormCatOpen=false; addFormSubOpen=false;
+    window._addCatFilter=""; window._addSubFilter="";
+    // reset cat to first of new kind
+    const newCats = catsFor(k);
+    addFormCatValue = newCats[0]||"";
+    const nl = ALL_SUBCATS[addFormCatValue]||[];
+    addFormSubValue = nl[0]?.n||"";
     renderAddForm(keep);
   }));
 
@@ -1134,24 +1459,58 @@ function renderAddForm(carry) {
     document.getElementById("fTags").value = carry.tags || "";
   }
 
-  const catSel = document.getElementById("fCategory");
-  const subSel = document.getElementById("fSub");
-  catSel.addEventListener("change", () => {
-    subSel.innerHTML = subOptions(catSel.value);
-    refreshSubHint();
+  // Dropdown handlers
+  const catBtn = document.getElementById("fCategoryBtn");
+  const subBtn = document.getElementById("fSubBtn");
+  if(catBtn) catBtn.addEventListener("click", ()=>{ hapticTap(); addFormCatOpen=!addFormCatOpen; if(addFormCatOpen) addFormSubOpen=false; renderAddForm(); setTimeout(()=>{ const s=document.querySelector('[data-search="addCat"]'); if(s) s.focus(); },0); });
+  if(subBtn) subBtn.addEventListener("click", ()=>{ hapticTap(); addFormSubOpen=!addFormSubOpen; if(addFormSubOpen) addFormCatOpen=false; renderAddForm(); setTimeout(()=>{ const s=document.querySelector('[data-search="addSub-sub"]'); if(s) s.focus(); },0); });
+  el.querySelectorAll("[data-cat]").forEach(item=> item.addEventListener("click", ()=>{
+    addFormCatValue = item.getAttribute("data-cat");
+    const nl2 = ALL_SUBCATS[addFormCatValue]||[];
+    addFormSubValue = nl2[0]?.n||"";
+    addFormCatOpen=false; hapticTap(); renderAddForm();
+    // restore typed fields
+    const keepAmt = carry ? carry.amount : document.getElementById("fAmount")?.value;
+  }));
+  el.querySelectorAll("[data-sub]").forEach(item=> item.addEventListener("click", ()=>{
+    addFormSubValue = item.getAttribute("data-sub");
+    addFormSubOpen=false; hapticTap(); renderAddForm();
+  }));
+  el.querySelectorAll(".dropdown-search").forEach(inp=>{
+    inp.addEventListener("input", (e)=>{
+      const key = inp.getAttribute("data-search");
+      if(key==="addCat") window._addCatFilter = e.target.value;
+      else if(key==="addSub-sub") window._addSubFilter = e.target.value;
+      // re-render filtered list without closing
+      // lightweight: filter DOM instead of full re-render to keep focus
+      const filter = e.target.value.toLowerCase();
+      const list = inp.nextElementSibling;
+      if(!list) return;
+      Array.from(list.children).forEach(row=>{
+        const txt = (row.getAttribute("data-cat")||row.getAttribute("data-sub")||"").toLowerCase();
+        row.style.display = !filter || txt.includes(filter) ? "" : "none";
+      });
+    });
+    inp.addEventListener("click", e=> e.stopPropagation());
   });
-  subSel.addEventListener("change", refreshSubHint);
-  refreshSubHint();
+  // close dropdowns when clicking outside card
+  // (simple: clicking amount/date/note will close)
+  ["fAmount","fDate","fNote","fTags"].forEach(id=>{
+    const inp=document.getElementById(id);
+    if(inp) inp.addEventListener("focus", ()=>{ if(addFormCatOpen||addFormSubOpen){ addFormCatOpen=false; addFormSubOpen=false; renderAddForm(); }});
+  });
+
 
   document.getElementById("btnAdd").addEventListener("click", () => {
     const amountVal = parseFloat(document.getElementById("fAmount").value);
     if (isNaN(amountVal) || amountVal <= 0) { showToast("Enter a valid amount"); return; }
+    hapticSuccess();
     const entry = {
       id: uid(),
       amount: money(amountVal),
       kind: formKind,
-      category: catSel.value,
-      sub: subSel.value || "",
+      category: addFormCatValue,
+      sub: addFormSubValue || "",
       note: document.getElementById("fNote").value.trim(),
       tags: document.getElementById("fTags").value.split(",").map(t=>t.trim()).filter(Boolean),
       date: document.getElementById("fDate").value || todayStr()
@@ -1168,8 +1527,9 @@ function renderAddForm(carry) {
   document.getElementById("btnSavePreset").addEventListener("click", () => {
     const amountVal = parseFloat(document.getElementById("fAmount").value);
     if (isNaN(amountVal) || amountVal <= 0) { showToast("Enter an amount first"); return; }
-    const cat = catSel.value;
-    const sub = subSel.value || "";
+    hapticTap();
+    const cat = addFormCatValue;
+    const sub = addFormSubValue || "";
     const label = document.getElementById("fNote").value.trim() || sub || cat;
     const dupe = presets.some(p => p.label === label && Number(p.amount) === amountVal && kindOf(p) === formKind);
     if (dupe) { showToast("Already a quick add"); return; }
@@ -1465,6 +1825,26 @@ function renderStats() {
   const monthlyBars = Object.keys(monthMap).sort().slice(-6)
     .map(k => ({month:k, inAmt:monthMap[k].inAmt, outAmt:monthMap[k].outAmt}));
 
+  // Build spendSeries for range (week/month/year) like stats-data
+  function buildSpendSeries(spend){
+    const today = todayStr();
+    const y = parseInt(today.slice(0,4)), m=parseInt(today.slice(5,7)), d=parseInt(today.slice(8,10));
+    const todayDate = new Date(y,m-1,d);
+    // week: last 7 days
+    const week = [];
+    for(let i=6;i>=0;i--){ const dt=new Date(todayDate); dt.setDate(todayDate.getDate()-i); const ds=dt.toISOString().slice(0,10); const amt=spend.filter(e=>e.date===ds).reduce((s,e)=>s+e.amount,0); const label=ds.slice(5); week.push({label, amount:amt}); }
+    // month: per week buckets? simplified: last 30 days grouped by day like trendData but for chart use same as week for month range
+    // For fidelity, month = last 30 days daily as trendData
+    const month = trendData.slice();
+    // year: last 12 months
+    const year = [];
+    for(let i=11;i>=0;i--){ const dt=new Date(y,m-1-i,1); const mk = dt.toISOString().slice(0,7); const amt=spend.filter(e=> monthKey(e.date)===mk).reduce((s,e)=>s+e.amount,0); const label=mk.slice(5); year.push({label, amount:amt}); }
+    return {week, month, year};
+  }
+  const spendSeries = buildSpendSeries(spend);
+  const activeSeries = spendSeries[statsRange] || spendSeries.month;
+  const hasSpendInRange = activeSeries.some(p=>p.amount>0);
+
   const el = document.getElementById("statsView");
   el.innerHTML = `
     ${srcTotals.length ? `
@@ -1480,8 +1860,13 @@ function renderStats() {
         </div>
       `).join("")}
     </div>` : ""}
-    <div class="section-label">Spending, Last 30 Days</div>
-    <div class="card">${buildLineChart(trendData, 500, 160)}</div>
+    <div class="section-label">Spending</div>
+    <div class="segmented" style="margin-bottom:12px;">
+      <button class="seg-btn ${statsRange==='week'?'active':''}" data-range="week">This Week</button>
+      <button class="seg-btn ${statsRange==='month'?'active':''}" data-range="month">This Month</button>
+      <button class="seg-btn ${statsRange==='year'?'active':''}" data-range="year">This Year</button>
+    </div>
+    <div class="card">${hasSpendInRange ? buildLineChart(activeSeries, 500, 160) : '<div class="empty-inline">No spending in this period</div>'}</div>
     <div class="section-label">Where It Went</div>
     <div class="card">
       ${catTotals.length ? catTotals.map(c => `
@@ -1506,6 +1891,12 @@ function renderStats() {
   el.querySelectorAll("[data-cat-row]").forEach(btn => btn.addEventListener("click", () => {
     const c = btn.getAttribute("data-cat-row");
     expandedCat = expandedCat === c ? "" : c;
+    hapticTap();
+    renderStats();
+  }));
+  el.querySelectorAll("[data-range]").forEach(btn=> btn.addEventListener("click", ()=>{
+    statsRange = btn.getAttribute("data-range");
+    hapticTap();
     renderStats();
   }));
 }
@@ -1582,11 +1973,13 @@ function renderLog() {
     filterType = btn.getAttribute("data-type");
     filterCat = "All";
     filterSub = "";
+    hapticTap();
     renderLog();
   }));
   el.querySelectorAll("[data-cat]").forEach(btn => btn.addEventListener("click", () => {
     filterCat = btn.getAttribute("data-cat");
     filterSub = "";
+    hapticTap();
     renderLog();
   }));
   el.querySelectorAll("[data-sub]").forEach(btn => btn.addEventListener("click", () => {
@@ -1595,6 +1988,7 @@ function renderLog() {
   }));
   el.querySelectorAll("[data-tag]").forEach(btn => btn.addEventListener("click", () => { filterTag = btn.getAttribute("data-tag"); renderLog(); }));
   el.querySelectorAll(".del-btn").forEach(btn => btn.addEventListener("click", () => {
+    hapticWarning();
     const id = btn.getAttribute("data-id");
     let idx = -1;
     for (let i=0;i<entries.length;i++) if (entries[i].id === id) { idx = i; break; }
@@ -1667,14 +2061,23 @@ function renderSettings() {
             <span class="field-row-label">Amount</span>
             <input id="pAmount" type="number" inputmode="decimal" placeholder="0.00" step="0.01">
           </div>
-          <div class="field-row">
-            <span class="field-row-label">${presetKind==='in' ? 'Source' : 'Category'}</span>
-            <select id="pCategory">${catsFor(presetKind).map(c=>`<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("")}</select>
+          <div class="dropdown-label">${presetKind==='in' ? 'Source' : 'Category'}</div>
+          <div class="dropdown-wrapper">
+            <button class="dropdown-btn" id="pCategoryBtn" aria-label="Select category">
+              <span class="dropdown-btn-inner"><span class="dropdown-btn-text">${escapeHtml(presetCatValue || catsFor(presetKind)[0] || "Select")}</span></span>
+              ${dropdownArrowHTML(presetCatOpen)}
+            </button>
+            ${buildCategoryDropdownHTML(catsFor(presetKind), presetCatValue || catsFor(presetKind)[0], presetCatOpen, "presetCat", window._presetCatFilter||"")}
           </div>
-          <div class="field-row">
-            <span class="field-row-label">${presetKind==='in' ? 'Detail' : 'Subcategory'}</span>
-            <select id="pSub">${subOptions(catsFor(presetKind)[0])}</select>
-          </div>
+          ${(() => { const subs=ALL_SUBCATS[presetCatValue || catsFor(presetKind)[0]]||[]; if(!subs.length) return ""; return `
+          <div class="dropdown-label">${presetKind==='in' ? 'Detail' : 'Subcategory'}</div>
+          <div class="dropdown-wrapper">
+            <button class="dropdown-btn" id="pSubBtn">
+              <span class="dropdown-btn-inner"><span class="dropdown-btn-text">${escapeHtml(presetSubValue || subs[0]?.n || "Select")}</span></span>
+              ${dropdownArrowHTML(presetSubOpen)}
+            </button>
+            ${buildSubDropdownHTML(presetCatValue || catsFor(presetKind)[0], presetSubValue || subs[0]?.n, presetSubOpen, "presetSub", window._presetSubFilter||"")}
+          </div>`; })()}
           <div class="field-row">
             <span class="field-row-label">Tags</span>
             <input id="pTags" type="text" placeholder="Optional">
@@ -1683,6 +2086,13 @@ function renderSettings() {
           <button class="link-btn" id="btnCancelPreset">Cancel</button>
         </div>
       ` : `<button class="link-btn" id="btnNewPreset">Add a quick add</button>`}
+    </div>
+
+    <div class="card" style="margin-top:12px;">
+      <div class="privacy-h2" style="margin-top:0;">Privacy</div>
+      <div class="privacy-p" style="margin-bottom:8px;">Gastos is fully offline. All entries, categories, presets and settings are stored locally in your browser (localStorage) on this device.</div>
+      <button class="data-btn" id="btnPrivacy" style="border-color:var(--border);">Privacy Policy</button>
+      <a href="./privacy.html" target="_blank" style="display:block; text-align:center; margin-top:8px; color:var(--text-secondary); font-size:12px; text-decoration:none;">Open web version</a>
     </div>
 
     <div class="section-label">Categories</div>
@@ -1745,25 +2155,62 @@ function renderSettings() {
 
   el.querySelectorAll("[data-preset-kind]").forEach(btn => btn.addEventListener("click", () => {
     presetKind = btn.getAttribute("data-preset-kind");
+    hapticTap();
+    // reset preset dropdown values
+    const pc = catsFor(presetKind);
+    presetCatValue = pc[0]||"";
+    const ps = ALL_SUBCATS[presetCatValue]||[];
+    presetSubValue = ps[0]?.n||"";
+    presetCatOpen=false; presetSubOpen=false;
     renderSettings();
   }));
+  // preset dropdown handlers
+  const pCatBtn=document.getElementById("pCategoryBtn");
+  const pSubBtn=document.getElementById("pSubBtn");
+  if(pCatBtn) pCatBtn.addEventListener("click", ()=>{ hapticTap(); presetCatOpen=!presetCatOpen; if(presetCatOpen) presetSubOpen=false; renderSettings(); setTimeout(()=>{ const s=document.querySelector('[data-search="presetCat"]'); if(s) s.focus(); },0); });
+  if(pSubBtn) pSubBtn.addEventListener("click", ()=>{ hapticTap(); presetSubOpen=!presetSubOpen; if(presetSubOpen) presetCatOpen=false; renderSettings(); });
+  el.querySelectorAll('[data-cat][data-type="presetCat"]').forEach(item=> item.addEventListener("click", ()=>{
+    presetCatValue=item.getAttribute("data-cat");
+    const subs=ALL_SUBCATS[presetCatValue]||[];
+    presetSubValue=subs[0]?.n||"";
+    presetCatOpen=false; hapticTap(); renderSettings();
+  }));
+  // preset sub items use data-sub with data-type presetSub
+  el.querySelectorAll('[data-sub][data-type="presetSub"]').forEach(item=> item.addEventListener("click", ()=>{
+    presetSubValue=item.getAttribute("data-sub");
+    presetSubOpen=false; hapticTap(); renderSettings();
+  }));
+  el.querySelectorAll('.dropdown-search').forEach(inp=>{
+    inp.addEventListener("input", (e)=>{
+      const key=inp.getAttribute("data-search");
+      if(key==="presetCat") window._presetCatFilter=e.target.value;
+      else if(key==="presetSub") window._presetSubFilter=e.target.value;
+      const filter=e.target.value.toLowerCase();
+      const list=inp.nextElementSibling;
+      if(!list) return;
+      Array.from(list.children).forEach(row=>{
+        const txt=(row.getAttribute("data-cat")||row.getAttribute("data-sub")||"").toLowerCase();
+        row.style.display = !filter || txt.includes(filter) ? "" : "none";
+      });
+    });
+    inp.addEventListener("click", e=> e.stopPropagation());
+  });
+
 
   const btnNew = document.getElementById("btnNewPreset");
   if (btnNew) btnNew.addEventListener("click", () => { showPresetForm = true; renderSettings(); });
   const btnCancel = document.getElementById("btnCancelPreset");
   if (btnCancel) btnCancel.addEventListener("click", () => { showPresetForm = false; renderSettings(); });
 
-  const pCat = document.getElementById("pCategory");
-  if (pCat) pCat.addEventListener("change", () => {
-    document.getElementById("pSub").innerHTML = subOptions(pCat.value);
-  });
+  // preset category handled via dropdown button
 
   const btnSaveNew = document.getElementById("btnSaveNewPreset");
   if (btnSaveNew) btnSaveNew.addEventListener("click", () => {
     const amountVal = parseFloat(document.getElementById("pAmount").value);
     if (isNaN(amountVal) || amountVal <= 0) { showToast("Enter a valid amount"); return; }
-    const cat = pCat.value;
-    const sub = document.getElementById("pSub").value || "";
+    hapticSuccess();
+    const cat = presetCatValue || catsFor(presetKind)[0];
+    const sub = presetSubValue || "";
     const label = document.getElementById("pLabel").value.trim() || sub || cat;
     presets.push({
       id: "p" + uid(),
@@ -1853,11 +2300,20 @@ function renderSettings() {
     const c = btn.getAttribute("data-sub-add");
     const name = prompt("New subcategory name", "");
     if (name === null) return;
+    hapticTap();
     if (addSubcat(catSettingsKind, c, name)) {
       renderSettings(); renderAddForm();
       showToast(`Added "${name.trim()}"`);
     }
   }));
+  const btnPrivacyEl=document.getElementById("btnPrivacy");
+  if(btnPrivacyEl) btnPrivacyEl.addEventListener("click", showPrivacy);
+  const expBtn = document.getElementById("btnExport");
+  const expCsvBtn = document.getElementById("btnExportCsv");
+  const impBtn = document.getElementById("btnImport");
+  if(expBtn) expBtn.addEventListener("click", ()=> hapticTap());
+  if(expCsvBtn) expCsvBtn.addEventListener("click", ()=> hapticTap());
+  if(impBtn) impBtn.addEventListener("click", ()=> hapticTap());
 }
 
 document.getElementById("importFile").addEventListener("change", (ev) => {
@@ -1919,10 +2375,10 @@ document.getElementById("importFile").addEventListener("change", (ev) => {
 });
 
 /* ---------- Tabs ---------- */
-document.getElementById("tabDashboard").addEventListener("click", () => { currentView="dashboard"; render(); });
-document.getElementById("tabStats").addEventListener("click", () => { currentView="stats"; render(); });
-document.getElementById("tabLog").addEventListener("click", () => { currentView="log"; render(); });
-document.getElementById("tabSettings").addEventListener("click", () => { currentView="settings"; render(); });
+document.getElementById("tabDashboard").addEventListener("click", () => { hapticTap(); currentView="dashboard"; render(); });
+document.getElementById("tabStats").addEventListener("click", () => { hapticTap(); currentView="stats"; render(); });
+document.getElementById("tabLog").addEventListener("click", () => { hapticTap(); currentView="log"; render(); });
+document.getElementById("tabSettings").addEventListener("click", () => { hapticTap(); currentView="settings"; render(); });
 
 function render() {
   document.getElementById("tabDashboard").classList.toggle("active", currentView==="dashboard");
@@ -1931,6 +2387,7 @@ function render() {
   document.getElementById("tabSettings").classList.toggle("active", currentView==="settings");
   document.getElementById("quickAddCard").style.display = currentView==="dashboard" ? "block" : "none";
   document.getElementById("addFormCard").style.display = currentView==="dashboard" ? "block" : "none";
+  document.getElementById("fabWrap").style.display = currentView==="dashboard" ? "flex" : "none";
   if (currentView==="dashboard") renderQuickAdd();
   document.getElementById("dashboardView").style.display = currentView==="dashboard" ? "block" : "none";
   document.getElementById("statsView").style.display = currentView==="stats" ? "block" : "none";
@@ -1977,6 +2434,25 @@ if (window.matchMedia) {
 
 handleQuickAdd();
 renderAddForm();
+// init onboarding
+initOnboarding();
+if(!hasSeenOnboarding()){
+  showOnboarding();
+}
+// privacy back
+document.getElementById("privacyBack").addEventListener("click", hidePrivacy);
+document.getElementById("privacyOverlay").addEventListener("click", (e)=>{ if(e.target===document.getElementById("privacyOverlay")) hidePrivacy(); });
+// FAB
+document.getElementById("fabBtn").addEventListener("click", ()=>{
+  hapticTap();
+  currentView="dashboard";
+  render();
+  setTimeout(()=>{
+    const amt=document.getElementById("fAmount");
+    if(amt){ amt.scrollIntoView({behavior:"smooth", block:"center"}); amt.focus(); }
+  },100);
+});
+// also haptics for quick add tiles (delegated)
 render();
 
 if ("serviceWorker" in navigator) {
