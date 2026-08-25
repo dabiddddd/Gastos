@@ -117,12 +117,14 @@
   }
   .section-label:first-child { margin-top: 4px; }
 
-  /* Add form amount — mirrors add.tsx amountInput: fontSize34 weight700 borderBottom1.5 paddingBottom8 marginBottom20 */
-  .amount-input-row { display: flex; align-items: baseline; gap: 4px; padding: 4px 0 8px; border-bottom: 1.5px solid var(--border); margin-bottom: 20px; }
-  .peso-sign { font-size: 28px; font-weight: 600; color: var(--text-secondary); }
-  #fAmount {
-    border: none; background: transparent; font-size: 34px; font-weight: 700;
-    color: var(--text); width: 100%; outline: none; letter-spacing: -0.02em;
+  /* Add form amount — mirrors add.tsx amountInputRow/pesoSign/amountInput exactly:
+     amountInputRow flex row baseline gap4 padding 4/14 borderBottom 0.5 marginBottom14,
+     pesoSign 28/600 green for income else textSecondary +₱/₱, amountInput flex1 34/700 border0 letterSpacing -0.02 */
+  .amount-input-row { display: flex; align-items: baseline; gap: 4px; padding: 4px 14px; border-bottom: 0.5px solid var(--border); margin-bottom: 14px; }
+  .peso-sign { font-size: 28px; font-weight: 600; color: var(--text-secondary); line-height: 1; }
+  #fAmount, #fAmountOverlay, #pAmountOverlay {
+    flex: 1; border: none; border-width: 0; background: transparent; font-size: 34px; font-weight: 700;
+    color: var(--text); width: 100%; outline: none; letter-spacing: -0.02em; min-width: 0;
   }
   .field-row {
     display: flex; align-items: center; justify-content: space-between;
@@ -489,7 +491,7 @@
   </div>
 
   <div class="content">
-    <div id="quickAddCard"></div>
+    <div id="quickAddCard" style="display:none;"></div>
     <div id="addFormCard"></div>
     <div id="dashboardView"></div>
     <div id="statsView" style="display:none;"></div>
@@ -1343,9 +1345,14 @@ try{
   addFormSubValue = _as[0]?.n||"";
 }catch(e){}
 
-/* ---------- Quick add tiles ---------- */
+/* ---------- Quick add tiles — Dashboard Quick Add removed (moved to Settings only, mirrors native (tabs)/index.tsx) ---------- */
 function renderQuickAdd() {
+  // Keep hidden; Settings owns quick adds. Early return so legacy calls are no-ops.
   const el = document.getElementById("quickAddCard");
+  if (el) el.style.display = "none";
+  return;
+  // --- legacy dashboard quick add (intentionally disabled) ---
+  // const _el = document.getElementById("quickAddCard");
   if (!presets.length) {
     el.innerHTML = `
       <div class="section-label">Quick Add</div>
@@ -1509,6 +1516,10 @@ function renderAddForm(carry) {
         <input id="fTags" type="text" placeholder="comma, separated">
       </div>
       <button class="btn-add" id="btnAdd" ${isIn?'style="background:var(--green);"':''}>${isIn ? 'Add Income' : 'Add Expense'}</button>
+      <div class="field-row">
+        <span class="field-row-label">Name for this quick add</span>
+        <input id="fQuickAddName" type="text" placeholder="e.g. Morning Coffee">
+      </div>
       <button class="link-btn" id="btnSavePreset">Save as quick add</button>
     </div>
   `;
@@ -1521,7 +1532,8 @@ function renderAddForm(carry) {
       amount: document.getElementById("fAmount").value,
       date: document.getElementById("fDate").value,
       note: document.getElementById("fNote").value,
-      tags: document.getElementById("fTags").value
+      tags: document.getElementById("fTags").value,
+      quickAddName: document.getElementById("fQuickAddName") ? document.getElementById("fQuickAddName").value : ""
     };
     formKind = k;
     addFormCatOpen=false; addFormSubOpen=false;
@@ -1539,6 +1551,8 @@ function renderAddForm(carry) {
     if (carry.date) document.getElementById("fDate").value = carry.date;
     document.getElementById("fNote").value = carry.note || "";
     document.getElementById("fTags").value = carry.tags || "";
+    const qan = document.getElementById("fQuickAddName");
+    if (qan) qan.value = carry.quickAddName || "";
   }
 
   // Dropdown handlers
@@ -1612,7 +1626,8 @@ function renderAddForm(carry) {
     hapticTap();
     const cat = addFormCatValue;
     const sub = addFormSubValue || "";
-    const label = document.getElementById("fNote").value.trim() || sub || cat;
+    const quickAddNameVal = (document.getElementById("fQuickAddName") ? document.getElementById("fQuickAddName").value.trim() : "");
+    const label = quickAddNameVal || document.getElementById("fNote").value.trim() || sub || cat;
     const dupe = presets.some(p => p.label === label && Number(p.amount) === amountVal && kindOf(p) === formKind);
     if (dupe) { showToast("Already a quick add"); return; }
     presets.push({
@@ -2590,10 +2605,10 @@ function render() {
   document.getElementById("tabStats").classList.toggle("active", currentView==="stats");
   document.getElementById("tabLog").classList.toggle("active", currentView==="log");
   document.getElementById("tabSettings").classList.toggle("active", currentView==="settings");
-  document.getElementById("quickAddCard").style.display = currentView==="dashboard" ? "block" : "none";
+  // Quick Add moved to Settings only — Dashboard shows statsGrid only (mirrors native (tabs)/index.tsx)
+  document.getElementById("quickAddCard").style.display = "none";
   document.getElementById("addFormCard").style.display = "none";
   document.getElementById("fabWrap").style.display = currentView==="dashboard" ? "flex" : "none";
-  if (currentView==="dashboard") renderQuickAdd();
   document.getElementById("dashboardView").style.display = currentView==="dashboard" ? "block" : "none";
   document.getElementById("statsView").style.display = currentView==="stats" ? "block" : "none";
   document.getElementById("logView").style.display = currentView==="log" ? "block" : "none";
@@ -2734,11 +2749,30 @@ function renderAddOverlay(){
         <span class="field-row-label">Tags</span>
         <input id="fTagsOverlay" type="text" placeholder="comma, separated">
       </div>
+      <div class="field-row">
+        <span class="field-row-label">Name for this quick add</span>
+        <input id="fQuickAddNameOverlay" type="text" placeholder="e.g. Morning Coffee">
+      </div>
       <button class="link-btn" id="btnSavePresetOverlay">Save as quick add</button>
   `;
   // mirror input for canSave check
   el.querySelectorAll("[data-kind]").forEach(btn=> btn.addEventListener("click", ()=>{
-    const k=btn.getAttribute("data-kind"); if(k===formKind) return; hapticTap(); formKind=k; addFormCatOpen=false; addFormSubOpen=false; window._addCatFilter=""; window._addSubFilter=""; const nc=catsFor(k); addFormCatValue=nc[0]||""; const nl=ALL_SUBCATS[addFormCatValue]||[]; addFormSubValue=nl[0]?.n||""; renderAddOverlay();
+    const k=btn.getAttribute("data-kind"); if(k===formKind) return; hapticTap();
+    const keepOverlay = {
+      amount: document.getElementById('fAmountOverlay') ? document.getElementById('fAmountOverlay').value : "",
+      date: document.getElementById('fDateOverlay') ? document.getElementById('fDateOverlay').value : "",
+      note: document.getElementById('fNoteOverlay') ? document.getElementById('fNoteOverlay').value : "",
+      tags: document.getElementById('fTagsOverlay') ? document.getElementById('fTagsOverlay').value : "",
+      quickAddName: document.getElementById('fQuickAddNameOverlay') ? document.getElementById('fQuickAddNameOverlay').value : ""
+    };
+    formKind=k; addFormCatOpen=false; addFormSubOpen=false; window._addCatFilter=""; window._addSubFilter=""; const nc=catsFor(k); addFormCatValue=nc[0]||""; const nl=ALL_SUBCATS[addFormCatValue]||[]; addFormSubValue=nl[0]?.n||""; renderAddOverlay();
+    setTimeout(()=>{
+      if(document.getElementById('fAmountOverlay')) document.getElementById('fAmountOverlay').value = keepOverlay.amount;
+      if(document.getElementById('fDateOverlay')) document.getElementById('fDateOverlay').value = keepOverlay.date;
+      if(document.getElementById('fNoteOverlay')) document.getElementById('fNoteOverlay').value = keepOverlay.note;
+      if(document.getElementById('fTagsOverlay')) document.getElementById('fTagsOverlay').value = keepOverlay.tags;
+      if(document.getElementById('fQuickAddNameOverlay')) document.getElementById('fQuickAddNameOverlay').value = keepOverlay.quickAddName;
+    },0);
   }));
   const catBtn=document.getElementById("fCategoryBtnOverlay");
   const subBtn=document.getElementById("fSubBtnOverlay");
@@ -2771,7 +2805,9 @@ function renderAddOverlay(){
     const amountVal=parseFloat(document.getElementById('fAmountOverlay').value);
     if(isNaN(amountVal)||amountVal<=0){ showToast("Enter an amount first"); return; }
     hapticTap();
-    const cat=addFormCatValue; const sub=addFormSubValue||""; const label=document.getElementById('fNoteOverlay').value.trim()||sub||cat;
+    const cat=addFormCatValue; const sub=addFormSubValue||"";
+    const qaNameOverlay = (document.getElementById('fQuickAddNameOverlay') ? document.getElementById('fQuickAddNameOverlay').value.trim() : "");
+    const label= qaNameOverlay || document.getElementById('fNoteOverlay').value.trim()||sub||cat;
     const dupe=presets.some(p=>p.label===label && Number(p.amount)===amountVal && kindOf(p)===formKind);
     if(dupe){ showToast("Already a quick add"); return; }
     presets.push({id:"p"+uid(), label, amount:money(amountVal), kind:formKind, category:cat, sub, tags:document.getElementById('fTagsOverlay').value.split(",").map(t=>t.trim()).filter(Boolean)});
