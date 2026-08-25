@@ -431,6 +431,48 @@
     font-weight: 700; text-decoration: underline; padding: 2px 0; flex-shrink: 0;
   }
 
+
+  /* Prompt/confirm modal — mirrors app/(tabs)/settings.tsx modalBackdrop/modalCard/promptTitle etc */
+  .modal-backdrop {
+    position: fixed; inset: 0; z-index: 1200;
+    background: rgba(0,0,0,0.45);
+    display: flex; align-items: center; justify-content: center;
+    padding: 32px;
+  }
+  .modal-card {
+    width: 100%; max-width: 420px;
+    background: var(--card); border-radius: 14px; padding: 18px;
+    border: 0.5px solid var(--border);
+  }
+  .prompt-title { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 12px; }
+  .prompt-input {
+    width: 100%; border: 0.5px solid var(--border); border-radius: 10px;
+    padding: 10px 12px; font-size: 15px; color: var(--text); background: var(--card);
+    outline: none; margin-bottom: 14px;
+  }
+  .prompt-input:focus { border-color: var(--accent); }
+  .prompt-btn-row { display: flex; justify-content: flex-end; gap: 24px; }
+  .prompt-btn { background: transparent; border: none; padding: 6px 0; font-size: 15px; font-weight: 600; }
+  .prompt-btn.cancel { color: var(--text-secondary); }
+  .prompt-btn.save { color: var(--accent); }
+  .prompt-btn.save:disabled { color: var(--text-secondary); opacity: 0.5; }
+  .prompt-btn.danger { color: var(--red); }
+
+  /* Add/Preset overlay — mirrors app/add.tsx and app/preset-form.tsx presentation: modal */
+  .overlay {
+    position: fixed; inset: 0; z-index: 1100; background: var(--bg);
+    display: flex; flex-direction: column;
+    padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);
+    overflow-y: auto;
+  }
+  .overlay-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 20px; flex-shrink: 0;
+  }
+  .overlay-header-btn { font-size: 16px; background: transparent; border: none; }
+  .overlay-header-title { font-size: 17px; font-weight: 700; color: var(--text); }
+  .overlay-content { padding: 0 20px 40px; }
+
   ::-webkit-scrollbar { display: none; }
 </style>
 </head>
@@ -484,7 +526,7 @@
   <div class="privacy-body">
     <div class="privacy-updated">Last updated: 2026-08-25</div>
     <div class="privacy-h2">No data collection</div>
-    <div class="privacy-p">Gastos is fully offline. All entries, categories, presets and settings are stored locally in your browser (localStorage) on this device. There is no account, no backend, no analytics, no ads, and no trackers.</div>
+    <div class="privacy-p">Gastos is fully offline. All entries, categories, presets and settings are stored locally in SQLite on your device. There is no account, no backend, no analytics, no ads, and no trackers.</div>
     <div class="privacy-h2">Backups</div>
     <div class="privacy-p">JSON/CSV export creates a file you choose to save or share. Import merges by ID and never uploads data anywhere.</div>
     <div class="privacy-h2">Crash reporting</div>
@@ -497,7 +539,47 @@
   </div>
 </div>
 
+
+<div id="addOverlay" class="overlay" style="display:none;">
+  <div class="overlay-header">
+    <button class="overlay-header-btn" id="addCancel" style="color:var(--accent);">Cancel</button>
+    <span class="overlay-header-title">Add Entry</span>
+    <button class="overlay-header-btn" id="addSave" style="color:var(--accent); font-weight:700;">Save</button>
+  </div>
+  <div class="overlay-content" id="addOverlayContent"></div>
+</div>
+<div id="presetOverlay" class="overlay" style="display:none;">
+  <div class="overlay-header">
+    <button class="overlay-header-btn" id="presetCancel" style="color:var(--accent);">Cancel</button>
+    <span class="overlay-header-title">Add a Quick Add</span>
+    <button class="overlay-header-btn" id="presetSave" style="color:var(--accent); font-weight:700;">Save</button>
+  </div>
+  <div class="overlay-content" id="presetOverlayContent"></div>
+</div>
+
 <input type="file" id="importFile" accept="application/json">
+
+<div id="promptModal" class="modal-backdrop" style="display:none;">
+  <div class="modal-card">
+    <div class="prompt-title" id="promptTitle"></div>
+    <input class="prompt-input" id="promptInput" autocomplete="off">
+    <div class="prompt-btn-row">
+      <button class="prompt-btn cancel" id="promptCancel">Cancel</button>
+      <button class="prompt-btn save" id="promptSave">Save</button>
+    </div>
+  </div>
+</div>
+<div id="confirmModal" class="modal-backdrop" style="display:none;">
+  <div class="modal-card">
+    <div class="prompt-title" id="confirmTitle"></div>
+    <div class="privacy-p" id="confirmMsg" style="margin-bottom:14px;"></div>
+    <div class="prompt-btn-row">
+      <button class="prompt-btn cancel" id="confirmCancel">Cancel</button>
+      <button class="prompt-btn danger" id="confirmOk">Delete</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -1302,11 +1384,7 @@ function renderQuickAdd() {
 /* Jumps to Settings with the new-preset form already open, since that's
    where preset creation actually lives. */
 function openQuickAddCreator() {
-  currentView = "settings";
-  showPresetForm = true;
-  render();
-  const form = document.getElementById("pLabel");
-  if (form) form.scrollIntoView({ behavior: "smooth", block: "center" });
+  openPresetOverlay();
 }
 
 function logPreset(id) {
@@ -1758,21 +1836,20 @@ function renderDashboard() {
       </div>
       <div class="stat-card">
         <div class="stat-label">All Time</div>
-        <div class="stat-value mono">${peso(spend.reduce((s,e)=>s+e.amount,0))}</div>
+        <div class="stat-value mono">${peso(entries.filter(e=>e.kind !== 'in').reduce((s,e)=>s+e.amount,0))}</div>
       </div>
       `}
-      ${hasSavings && !hasIncome ? `
-      <div class="stat-card wide">
-        <div class="stat-label">Set Aside This Month</div>
-        <div class="stat-value mono" style="color:var(--green);">${peso(savedThisMonth)}</div>
-        <div class="settings-sub">Savings and investments, kept out of spending totals</div>
-      </div>` : ""}
     </div>
   `;
 }
 
 /* ---------- Stats ---------- */
 function renderStats() {
+  // Mirrors stats.tsx StatsBody hasData/hasAnySpend checks
+  if(!entries.length){
+    document.getElementById("statsView").innerHTML = `<div class="card" style="align-items:center; padding:28px 16px;"><div class="empty">No entries yet.<br>Log something and your stats will show up here.</div></div>`;
+    return;
+  }
   const thisMonth = monthKey(todayStr());
   const spend = entries.filter(isSpend);
   const monthSpend = spend.filter(e => monthKey(e.date)===thisMonth);
@@ -1830,7 +1907,48 @@ function renderStats() {
     .map(k => ({month:k, inAmt:monthMap[k].inAmt, outAmt:monthMap[k].outAmt}));
 
   // Build spendSeries for range (week/month/year) like stats-data
+  // Ported verbatim from lib/stats-data.ts buildSpendSeries + helpers
+  function toDateKey(d){
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const day = String(d.getDate()).padStart(2,'0');
+    return d.getFullYear()+'-'+m+'-'+day;
+  }
   function buildSpendSeries(spend){
+    const daily={};
+    spend.forEach(e=>{
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(e.date)) return;
+      daily[e.date]=(daily[e.date]||0)+e.amount;
+    });
+    const today = new Date();
+    const WEEKDAYS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    const MONTH_NAMES=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const week=[];
+    const mondayOffset=(today.getDay()+6)%7;
+    for(let i=mondayOffset;i>=0;i--){
+      const d=new Date(today.getFullYear(), today.getMonth(), today.getDate()-i);
+      const key=toDateKey(d);
+      week.push({label: WEEKDAYS[d.getDay()], amount: daily[key]||0});
+    }
+    const month=[];
+    for(let day=1; day<=today.getDate(); day++){
+      const d=new Date(today.getFullYear(), today.getMonth(), day);
+      const key=toDateKey(d);
+      month.push({label: String(day), amount: daily[key]||0});
+    }
+    const byMonth={};
+    Object.keys(daily).forEach(key=>{
+      if(Number(key.slice(0,4))===today.getFullYear()){
+        const mm=key.slice(5,7);
+        byMonth[mm]=(byMonth[mm]||0)+daily[key];
+      }
+    });
+    const year=[];
+    for(let m=0; m<=today.getMonth(); m++){
+      year.push({label: MONTH_NAMES[m], amount: byMonth[String(m+1).padStart(2,'0')]||0});
+    }
+    return {week, month, year};
+  }
+  function buildSpendSeriesLegacy(spend){
     const today = todayStr();
     const y = parseInt(today.slice(0,4)), m=parseInt(today.slice(5,7)), d=parseInt(today.slice(8,10));
     const todayDate = new Date(y,m-1,d);
@@ -1946,13 +2064,8 @@ function renderLog() {
       <button class="chip ${filterCat==='All'?'active':''}" data-cat="All">All</button>
       ${catList.map(c=>`<button class="chip ${filterCat===c?'active':''}" data-cat="${escapeHtml(c)}">${escapeHtml(c)}</button>`).join("")}
     </div>
-    ${subsInUse.length ? `<div class="filter-row">
-      <button class="chip ${filterSub===''?'active':''}" data-sub="">All ${escapeHtml(filterCat)}</button>
-      ${subsInUse.map(s=>`<button class="chip ${filterSub===s?'active':''}" data-sub="${escapeHtml(s)}">${escapeHtml(s)}</button>`).join("")}
-    </div>` : ""}
-    ${allTags.length ? `<div class="filter-row">
-      <button class="chip ${filterTag===''?'active':''}" data-tag="">All tags</button>
-      ${allTags.map(t=>`<button class="chip ${filterTag===t?'active':''}" data-tag="${escapeHtml(t)}">#${escapeHtml(t)}</button>`).join("")}
+    ${(subsInUse.length || allTags.length) ? `<div class="filter-row">
+      ${[...subsInUse.map(s=>({kind:'sub',value:s})), ...allTags.map(t=>({kind:'tag',value:t}))].map(f=>{ const active = f.kind==='sub' ? filterSub===f.value : filterTag===f.value; const label = f.kind==='sub' ? escapeHtml(f.value) : '#'+escapeHtml(f.value); const attr = f.kind==='sub' ? 'data-sub' : 'data-tag'; return `<button class="chip ${active?'active':''}" ${attr}="${escapeHtml(f.value)}">${label}</button>`; }).join("")}
     </div>` : ""}
     <div class="filter-summary">${summary}</div>
     <div class="card">
@@ -2100,13 +2213,13 @@ function renderSettings() {
          <button class="data-btn" id="btnImport" style="flex:1; border-color:var(--border);">Import JSON</button>
        </div>
        <div class="hint">Your data never leaves this phone except through a backup you export yourself.</div>
+       <button class="link-btn" id="btnPrivacy" style="text-align:left; padding:10px 0 0; font-size:13px;">Privacy Policy</button>
+       <a href="https://dabiddddd.github.io/Gastos/privacy" target="_blank" style="display:block; margin-top:6px; color:var(--text-secondary); font-size:12px; text-decoration:none;">Open web version</a>
      </div>
 
-     <div class="card" style="margin-top:12px;">
+     <div class="card" style="display:none;">
        <div class="privacy-h2" style="margin-top:0;">Privacy</div>
        <div class="privacy-p" style="margin-bottom:8px;">Gastos is fully offline. All entries, categories, presets and settings are stored locally in your browser (localStorage) on this device.</div>
-       <button class="data-btn" id="btnPrivacy" style="border-color:var(--border);">Privacy Policy</button>
-       <a href="./privacy.html" target="_blank" style="display:block; text-align:center; margin-top:8px; color:var(--text-secondary); font-size:12px; text-decoration:none;">Open web version</a>
      </div>
 
     <div class="section-label">Categories</div>
@@ -2128,18 +2241,21 @@ function renderSettings() {
             <span class="settings-sub">${subs.length} sub${subs.length===1?'':'s'}</span>
           </button>
           ${isOpen ? `
-            <div class="cat-edit-row">
-              <button class="link-btn" data-cat-rename="${escapeHtml(c)}">Rename</button>
-              <button class="link-btn danger" data-cat-delete="${escapeHtml(c)}">Delete category</button>
-            </div>
-            <div class="chip-list">
+
+            <div style="padding-left:16px; padding-bottom:10px; display:flex; flex-direction:column; gap:6px;">
               ${subs.map(s => `
-                <span class="chip sub-chip" data-sub-rename="${escapeHtml(c)}|${escapeHtml(s.n)}">
-                  ${escapeHtml(s.n)}
-                  <button class="chip-x" data-sub-delete="${escapeHtml(c)}|${escapeHtml(s.n)}" aria-label="Remove ${escapeHtml(s.n)}">✕</button>
-                </span>
+                <div style="display:flex; align-items:center; padding:4px 0;">
+                  <button style="flex:1; background:transparent; border:none; text-align:left; font-size:14px; color:var(--text);" data-sub-rename="${escapeHtml(c)}|${escapeHtml(s.n)}">${escapeHtml(s.n)}${s.r ? ' ↻' : ''}${s.e ? ' ★' : ''}</button>
+                  <button style="background:transparent; border:none; color:var(--red); font-size:14px; padding:4px;" data-sub-delete="${escapeHtml(c)}|${escapeHtml(s.n)}" aria-label="Remove ${escapeHtml(s.n)}">✕</button>
+                </div>
               `).join("")}
-              <button class="chip chip-add" data-sub-add="${escapeHtml(c)}">+ Add subcategory</button>
+              <div style="display:flex; justify-content:space-between; padding-top:4px;">
+                <button style="background:transparent; border:none; color:var(--accent); font-size:13px; font-weight:600;" data-sub-add="${escapeHtml(c)}">+ Add subcategory</button>
+              </div>
+              <div style="display:flex; justify-content:space-between; padding-top:4px;">
+                <button style="background:transparent; border:none; color:var(--accent); font-size:13px; font-weight:600;" data-cat-rename="${escapeHtml(c)}">Rename category</button>
+                <button style="background:transparent; border:none; color:var(--red); font-size:13px; font-weight:600;" data-cat-delete="${escapeHtml(c)}">Delete</button>
+              </div>
             </div>
           ` : ""}
         </div>
@@ -2256,69 +2372,75 @@ function renderSettings() {
 
   el.querySelectorAll("[data-cat-rename]").forEach(btn => btn.addEventListener("click", () => {
     const c = btn.getAttribute("data-cat-rename");
-    const next = prompt("Rename category", c);
-    if (next === null) return;
-    if (renameCategory(catSettingsKind, c, next)) {
-      expandedSettingsCat = next.trim();
-      renderSettings(); renderAddForm(); renderQuickAdd();
-      showToast("Category renamed");
-    }
+    showPrompt(`Rename "${c}"`, c, (next)=>{
+      if (renameCategory(catSettingsKind, c, next)) {
+        expandedSettingsCat = next.trim();
+        renderSettings(); renderQuickAdd();
+        if(document.getElementById('addOverlay').style.display==='flex') renderAddOverlay();
+        showToast("Category renamed");
+      }
+    });
   }));
 
   el.querySelectorAll("[data-cat-delete]").forEach(btn => btn.addEventListener("click", () => {
     const c = btn.getAttribute("data-cat-delete");
     const fallback = catSettingsKind === "in" ? "Other Income" : "Other";
-    if (confirm(`Delete "${c}"? Entries using it move to "${fallback}". This can't be undone.`)) {
+    showConfirm(`Delete "${c}"?`, `Entries using it move to ${fallback}. This can't be undone.`, ()=>{
       if (deleteCategory(catSettingsKind, c)) {
         expandedSettingsCat = "";
-        renderSettings(); renderAddForm(); renderQuickAdd();
+        renderSettings(); renderQuickAdd();
+        if(document.getElementById('addOverlay').style.display==='flex') renderAddOverlay();
         showToast(`"${c}" deleted`);
       }
-    }
+    });
   }));
 
   const btnAddCat = document.getElementById("btnAddCategory");
   if (btnAddCat) btnAddCat.addEventListener("click", () => {
-    const name = prompt(catSettingsKind === "in" ? "New income source name" : "New category name", "");
-    if (name === null) return;
-    if (addCategory(catSettingsKind, name)) {
-      expandedSettingsCat = name.trim();
-      renderSettings(); renderAddForm(); renderQuickAdd();
-      showToast(`Added "${name.trim()}"`);
-    }
+    showPrompt(catSettingsKind === "in" ? "New income source" : "New spending category", "", (name)=>{
+      if (addCategory(catSettingsKind, name)) {
+        expandedSettingsCat = name.trim();
+        renderSettings(); renderQuickAdd();
+        if(document.getElementById('addOverlay').style.display==='flex') renderAddOverlay();
+        showToast(`Added "${name.trim()}"`);
+      }
+    });
   });
 
   el.querySelectorAll("[data-sub-rename]").forEach(chip => chip.addEventListener("click", (ev) => {
     if (ev.target.closest("[data-sub-delete]")) return;
     const [c, s] = chip.getAttribute("data-sub-rename").split("|");
-    const next = prompt("Rename subcategory", s);
-    if (next === null) return;
-    if (renameSubcat(catSettingsKind, c, s, next)) {
-      renderSettings(); renderAddForm();
-      showToast("Subcategory renamed");
-    }
+    showPrompt(`Rename "${s}"`, s, (next)=>{
+      if (renameSubcat(catSettingsKind, c, s, next)) {
+        renderSettings();
+        if(document.getElementById('addOverlay').style.display==='flex') renderAddOverlay();
+        showToast("Subcategory renamed");
+      }
+    });
   }));
 
   el.querySelectorAll("[data-sub-delete]").forEach(btn => btn.addEventListener("click", (ev) => {
     ev.stopPropagation();
     const [c, s] = btn.getAttribute("data-sub-delete").split("|");
-    if (confirm(`Remove "${s}"? Entries using it keep their amount but lose this subcategory.`)) {
+    showConfirm(`Remove "${s}"?`, "Entries using it keep their amount but lose this detail.", ()=>{
       if (deleteSubcat(catSettingsKind, c, s)) {
-        renderSettings(); renderAddForm();
+        renderSettings();
+        if(document.getElementById('addOverlay').style.display==='flex') renderAddOverlay();
         showToast(`"${s}" removed`);
       }
-    }
+    });
   }));
 
   el.querySelectorAll("[data-sub-add]").forEach(btn => btn.addEventListener("click", () => {
     const c = btn.getAttribute("data-sub-add");
-    const name = prompt("New subcategory name", "");
-    if (name === null) return;
-    hapticTap();
-    if (addSubcat(catSettingsKind, c, name)) {
-      renderSettings(); renderAddForm();
-      showToast(`Added "${name.trim()}"`);
-    }
+    showPrompt(`Add subcategory to ${c}`, "", (name)=>{
+      hapticTap();
+      if (addSubcat(catSettingsKind, c, name)) {
+        renderSettings();
+        if(document.getElementById('addOverlay').style.display==='flex') renderAddOverlay();
+        showToast(`Added "${name.trim()}"`);
+      }
+    });
   }));
    const btnPrivacyEl=document.getElementById("btnPrivacy");
    if(btnPrivacyEl) btnPrivacyEl.addEventListener("click", showPrivacy);
@@ -2330,7 +2452,7 @@ function renderSettings() {
    if(impBtn) impBtn.addEventListener("click", ()=>{ hapticTap(); document.getElementById("importFile").click(); });
 
    function doExportJson(){
-     const payload={app:"gastos",version:1,exportedAt:new Date().toISOString(),entries,presets,categories:CATEGORIES,subcategories:SUBCATS,incomeCategories:INCOME_CATEGORIES,incomeSubcats:INCOME_SUBCATS};
+     const cats=[]; const subs=[]; (function(){ let order=0; CATEGORIES.forEach(c=>{ const ns = NON_SPEND.indexOf(c)>-1?1:0; cats.push({name:c, kind:'out', color:colorFor(c), sort_order:order++, non_spend:ns}); (SUBCATS[c]||[]).forEach(s=> subs.push({category:c, kind:'out', name:s.n, recurring:s.r?1:0, essential:s.e?1:0})); }); INCOME_CATEGORIES.forEach(c=>{ cats.push({name:c, kind:'in', color:colorFor(c), sort_order:order++, non_spend:0}); (INCOME_SUBCATS[c]||[]).forEach(s=> subs.push({category:c, kind:'in', name:s.n, recurring:s.r?1:0, essential:s.e?1:0})); }); })(); const payload={app:"gastos",version:1,exportedAt:new Date().toISOString(),entries:entries.map(e=>({id:e.id, amount:e.amount, kind:e.kind, category:e.category, sub:e.sub, note:e.note, tags:JSON.stringify(e.tags), date:e.date})),presets:presets.map(pr=>({id:pr.id, label:pr.label, amount:pr.amount, kind:pr.kind, category:pr.category, sub:pr.sub, tags:JSON.stringify(pr.tags)})),categories:cats,subcategories:subs};
      const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
      const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=`gastos-backup-${todayStr()}.json`; a.click(); URL.revokeObjectURL(url); showToast("Exported JSON");
    }
@@ -2354,15 +2476,36 @@ document.getElementById("importFile").addEventListener("change", (ev) => {
       /* Two shapes are accepted:
          format 1: a bare array of entries, written by earlier versions
          format 2: { entries, presets, settings } */
-      let inEntries, inPresets = [], inSettings = null;
+      let inEntries, inPresets = [], inCats=null, inSubs=null, inSettings = null;
       if (Array.isArray(parsed)) {
         inEntries = parsed;
       } else if (parsed && Array.isArray(parsed.entries)) {
         inEntries = parsed.entries;
         if (Array.isArray(parsed.presets)) inPresets = parsed.presets;
+        if (Array.isArray(parsed.categories)) inCats = parsed.categories;
+        if (Array.isArray(parsed.subcategories)) inSubs = parsed.subcategories;
         if (parsed.settings) inSettings = parsed.settings;
       } else {
         throw new Error("bad format");
+      }
+      if(inCats){
+        inCats.forEach(r=>{
+          if(!r.name||!r.color) return;
+          const kind=r.kind==='in'?'in':'out';
+          const cats=kind==='in'?INCOME_CATEGORIES:CATEGORIES;
+          if(!cats.includes(r.name)){ cats.push(r.name); (kind==='in'?INCOME_COLORS:CAT_COLORS)[r.name]=r.color; if(r.non_spend && kind==='out' && NON_SPEND.indexOf(r.name)===-1) NON_SPEND.push(r.name); if(!(kind==='in'?INCOME_SUBCATS:SUBCATS)[r.name]) (kind==='in'?INCOME_SUBCATS:SUBCATS)[r.name]=[]; }
+        });
+        recomputeMergedCats();
+      }
+      if(inSubs){
+        inSubs.forEach(r=>{
+          if(!r.category||!r.name) return;
+          const kind=r.kind==='in'?'in':'out';
+          const map=kind==='in'?INCOME_SUBCATS:SUBCATS;
+          if(!map[r.category]) map[r.category]=[];
+          if(!map[r.category].some(s=>s.n===r.name)) map[r.category].push({n:r.name, r:!!r.recurring, e:!!r.essential});
+        });
+        recomputeMergedCats();
       }
 
       const existingIds = new Set(entries.map(e => e.id));
@@ -2401,6 +2544,41 @@ document.getElementById("importFile").addEventListener("change", (ev) => {
   ev.target.value = "";
 });
 
+
+function showPrompt(title, initial, onConfirm){
+  const modal=document.getElementById('promptModal');
+  const titleEl=document.getElementById('promptTitle');
+  const input=document.getElementById('promptInput');
+  const saveBtn=document.getElementById('promptSave');
+  const cancelBtn=document.getElementById('promptCancel');
+  titleEl.textContent=title;
+  input.value=initial||'';
+  modal.style.display='flex';
+  setTimeout(()=>input.focus(), 50);
+  function close(){ modal.style.display='none'; saveBtn.onclick=null; cancelBtn.onclick=null; input.onkeydown=null; }
+  saveBtn.onclick=()=>{ const v=input.value.trim(); if(!v) return; close(); onConfirm(v); };
+  cancelBtn.onclick=close;
+  modal.onclick=(e)=>{ if(e.target===modal) close(); };
+  input.onkeydown=(e)=>{ if(e.key==='Enter'){ const v=input.value.trim(); if(!v) return; close(); onConfirm(v); } if(e.key==='Escape') close(); };
+  // disable save if empty
+  function toggle(){ saveBtn.disabled=!input.value.trim(); }
+  input.oninput=toggle; toggle();
+}
+function showConfirm(title, msg, onConfirm){
+  const modal=document.getElementById('confirmModal');
+  const titleEl=document.getElementById('confirmTitle');
+  const msgEl=document.getElementById('confirmMsg');
+  const okBtn=document.getElementById('confirmOk');
+  const cancelBtn=document.getElementById('confirmCancel');
+  titleEl.textContent=title;
+  msgEl.textContent=msg||'';
+  modal.style.display='flex';
+  function close(){ modal.style.display='none'; okBtn.onclick=null; cancelBtn.onclick=null; }
+  okBtn.onclick=()=>{ close(); onConfirm(); };
+  cancelBtn.onclick=close;
+  modal.onclick=(e)=>{ if(e.target===modal) close(); };
+}
+
 /* ---------- Tabs ---------- */
 document.getElementById("tabDashboard").addEventListener("click", () => { hapticTap(); currentView="dashboard"; render(); });
 document.getElementById("tabStats").addEventListener("click", () => { hapticTap(); currentView="stats"; render(); });
@@ -2413,7 +2591,7 @@ function render() {
   document.getElementById("tabLog").classList.toggle("active", currentView==="log");
   document.getElementById("tabSettings").classList.toggle("active", currentView==="settings");
   document.getElementById("quickAddCard").style.display = currentView==="dashboard" ? "block" : "none";
-  document.getElementById("addFormCard").style.display = currentView==="dashboard" ? "block" : "none";
+  document.getElementById("addFormCard").style.display = "none";
   document.getElementById("fabWrap").style.display = currentView==="dashboard" ? "flex" : "none";
   if (currentView==="dashboard") renderQuickAdd();
   document.getElementById("dashboardView").style.display = currentView==="dashboard" ? "block" : "none";
@@ -2460,6 +2638,28 @@ if (window.matchMedia) {
 }
 
 handleQuickAdd();
+
+document.getElementById('addCancel')?.addEventListener('click', closeAddOverlay);
+document.getElementById('presetCancel')?.addEventListener('click', closePresetOverlay);
+document.getElementById('addOverlay')?.addEventListener('click', (e)=>{ if(e.target===document.getElementById('addOverlay')) closeAddOverlay(); });
+document.getElementById('presetOverlay')?.addEventListener('click', (e)=>{ if(e.target===document.getElementById('presetOverlay')) closePresetOverlay(); });
+document.getElementById('addSave')?.addEventListener('click', ()=>{
+  const amountVal=parseFloat(document.getElementById('fAmountOverlay')?.value||'0');
+  if(isNaN(amountVal)||amountVal<=0){ showToast("Enter a valid amount"); return; }
+  const entry={id:uid(), amount:money(amountVal), kind:formKind, category:addFormCatValue, sub:addFormSubValue||"", note:document.getElementById('fNoteOverlay').value.trim(), tags:document.getElementById('fTagsOverlay').value.split(",").map(t=>t.trim()).filter(Boolean), date:document.getElementById('fDateOverlay').value || todayStr()};
+  entries.unshift(entry);
+  if(!saveEntries(entries)){ entries.shift(); return; }
+  hapticSuccess(); closeAddOverlay(); render(); showToast("Added");
+});
+document.getElementById('presetSave')?.addEventListener('click', ()=>{
+  const amountVal=parseFloat(document.getElementById('pAmountOverlay')?.value||'0');
+  if(isNaN(amountVal)||amountVal<=0){ showToast("Enter a valid amount"); return; }
+  const cat=presetCatValue||catsFor(presetKind)[0]; const sub=presetSubValue||""; const label=document.getElementById('pLabelOverlay').value.trim()||sub||cat;
+  presets.push({id:"p"+uid(), label, amount:money(amountVal), kind:presetKind, category:cat, sub, tags:document.getElementById('pTagsOverlay').value.split(",").map(t=>t.trim()).filter(Boolean)});
+  if(!savePresets(presets)){ presets.pop(); return; }
+  hapticSuccess(); closePresetOverlay(); render(); showToast(`Saved "${label}"`);
+});
+
 renderAddForm();
 // init onboarding
 initOnboarding();
@@ -2469,15 +2669,201 @@ if(!hasSeenOnboarding()){
 // privacy back
 document.getElementById("privacyBack").addEventListener("click", hidePrivacy);
 document.getElementById("privacyOverlay").addEventListener("click", (e)=>{ if(e.target===document.getElementById("privacyOverlay")) hidePrivacy(); });
-// FAB
+
+// ---------- Add Entry overlay — mirrors app/add.tsx ----------
+function openAddOverlay(){
+  formKind = currentView === 'dashboard' ? formKind : 'out';
+  // reset dropdown state
+  addFormCatOpen=false; addFormSubOpen=false;
+  window._addCatFilter=""; window._addSubFilter="";
+  const cats = catsFor(formKind);
+  addFormCatValue = cats[0]||"";
+  const subs = ALL_SUBCATS[addFormCatValue]||[];
+  addFormSubValue = subs[0]?.n||"";
+  document.getElementById('addOverlay').style.display='flex';
+  renderAddOverlay();
+  hapticTap();
+}
+function closeAddOverlay(){ document.getElementById('addOverlay').style.display='none'; }
+function renderAddOverlay(){
+  const el=document.getElementById('addOverlayContent');
+  const cats=catsFor(formKind);
+  if(!addFormCatValue || cats.indexOf(addFormCatValue)===-1) addFormCatValue=cats[0]||"";
+  const subList=ALL_SUBCATS[addFormCatValue]||[];
+  if(subList.length && (!addFormSubValue || !subList.some(s=>s.n===addFormSubValue))) addFormSubValue=subList[0]?.n||"";
+  if(!subList.length) addFormSubValue="";
+  const isIn=formKind==='in';
+  const hasSubs=subList.length>0;
+  const canSave = !isNaN(parseFloat(document.getElementById('_addAmtMirror')?.value || '')) ? parseFloat(document.getElementById('_addAmtMirror')?.value||'0')>0 : false;
+  el.innerHTML = `
+      <div class="segmented" style="margin-bottom:20px;">
+        <button class="seg-btn ${isIn?'':'active'}" data-kind="out">Money Out</button>
+        <button class="seg-btn ${isIn?'active':''}" data-kind="in">Money In</button>
+      </div>
+      <div class="dropdown-label" style="margin-top:4px;">Amount</div>
+      <div class="amount-input-row">
+        <span class="peso-sign" ${isIn?'style="color:var(--green);"':''}>${isIn?'+₱':'₱'}</span>
+        <input id="fAmountOverlay" type="number" inputmode="decimal" placeholder="0.00" step="0.01" ${isIn?'style="color:var(--green);"':''}>
+      </div>
+      <div class="dropdown-label">${isIn ? 'Source' : 'Category'}</div>
+      <div class="dropdown-wrapper">
+        <button class="dropdown-btn" id="fCategoryBtnOverlay" aria-label="Select category" aria-expanded="${addFormCatOpen}">
+          <span class="dropdown-btn-inner"><span class="dropdown-btn-text">${escapeHtml(addFormCatValue || cats[0] || "Select category")}</span></span>
+          ${dropdownArrowHTML(addFormCatOpen)}
+        </button>
+        ${buildCategoryDropdownHTML(cats, addFormCatValue, addFormCatOpen, "addCat", window._addCatFilter||"")}
+      </div>
+      ${hasSubs ? `
+      <div class="dropdown-label">${isIn ? 'Detail' : 'Subcategory'}</div>
+      <div class="dropdown-wrapper">
+        <button class="dropdown-btn" id="fSubBtnOverlay" aria-label="Select subcategory" aria-expanded="${addFormSubOpen}">
+          <span class="dropdown-btn-inner"><span class="dropdown-btn-text">${escapeHtml(addFormSubValue || subList[0]?.n || "Select subcategory")}</span></span>
+          ${dropdownArrowHTML(addFormSubOpen)}
+        </button>
+        ${buildSubDropdownHTML(addFormCatValue, addFormSubValue, addFormSubOpen, "addSub", window._addSubFilter||"")}
+      </div>` : ''}
+      <div class="field-row">
+        <span class="field-row-label">Date</span>
+        <input id="fDateOverlay" type="date" value="${todayStr()}">
+      </div>
+      <div class="field-row">
+        <span class="field-row-label">Note</span>
+        <input id="fNoteOverlay" type="text" placeholder="Optional">
+      </div>
+      <div class="field-row">
+        <span class="field-row-label">Tags</span>
+        <input id="fTagsOverlay" type="text" placeholder="comma, separated">
+      </div>
+      <button class="link-btn" id="btnSavePresetOverlay">Save as quick add</button>
+  `;
+  // mirror input for canSave check
+  el.querySelectorAll("[data-kind]").forEach(btn=> btn.addEventListener("click", ()=>{
+    const k=btn.getAttribute("data-kind"); if(k===formKind) return; hapticTap(); formKind=k; addFormCatOpen=false; addFormSubOpen=false; window._addCatFilter=""; window._addSubFilter=""; const nc=catsFor(k); addFormCatValue=nc[0]||""; const nl=ALL_SUBCATS[addFormCatValue]||[]; addFormSubValue=nl[0]?.n||""; renderAddOverlay();
+  }));
+  const catBtn=document.getElementById("fCategoryBtnOverlay");
+  const subBtn=document.getElementById("fSubBtnOverlay");
+  if(catBtn) catBtn.addEventListener("click", ()=>{ hapticTap(); addFormCatOpen=!addFormCatOpen; if(addFormCatOpen) addFormSubOpen=false; renderAddOverlay(); setTimeout(()=>{const s=document.querySelector('[data-search="addCat"]'); if(s) s.focus();},0); });
+  if(subBtn) subBtn.addEventListener("click", ()=>{ hapticTap(); addFormSubOpen=!addFormSubOpen; if(addFormSubOpen) addFormCatOpen=false; renderAddOverlay(); });
+  el.querySelectorAll("[data-cat]").forEach(item=> item.addEventListener("click", ()=>{ addFormCatValue=item.getAttribute("data-cat"); const nl2=ALL_SUBCATS[addFormCatValue]||[]; addFormSubValue=nl2[0]?.n||""; addFormCatOpen=false; hapticTap(); renderAddOverlay(); }));
+  el.querySelectorAll("[data-sub]").forEach(item=> item.addEventListener("click", ()=>{ addFormSubValue=item.getAttribute("data-sub"); addFormSubOpen=false; hapticTap(); renderAddOverlay(); }));
+  el.querySelectorAll(".dropdown-search").forEach(inp=>{
+    inp.addEventListener("input", (e)=>{
+      const key=inp.getAttribute("data-search");
+      if(key==="addCat") window._addCatFilter=e.target.value;
+      else if(key==="addSub-sub") window._addSubFilter=e.target.value;
+      const filter=e.target.value.toLowerCase();
+      const list=inp.nextElementSibling; if(!list) return;
+      Array.from(list.children).forEach(row=>{ const txt=(row.getAttribute("data-cat")||row.getAttribute("data-sub")||"").toLowerCase(); row.style.display=!filter||txt.includes(filter)?"":"none"; });
+    });
+    inp.addEventListener("click", e=> e.stopPropagation());
+  });
+  // update Save button state
+  const saveBtn=document.getElementById('addSave');
+  function updateSave(){
+    const v=parseFloat(document.getElementById('fAmountOverlay')?.value||'0');
+    const ok=!isNaN(v) && v>0 && !!addFormCatValue;
+    saveBtn.style.color = ok ? 'var(--accent)' : 'var(--text-secondary)';
+    saveBtn.style.opacity = ok ? '1' : '0.5';
+  }
+  document.getElementById('fAmountOverlay')?.addEventListener('input', updateSave);
+  updateSave();
+  document.getElementById('btnSavePresetOverlay')?.addEventListener('click', ()=>{
+    const amountVal=parseFloat(document.getElementById('fAmountOverlay').value);
+    if(isNaN(amountVal)||amountVal<=0){ showToast("Enter an amount first"); return; }
+    hapticTap();
+    const cat=addFormCatValue; const sub=addFormSubValue||""; const label=document.getElementById('fNoteOverlay').value.trim()||sub||cat;
+    const dupe=presets.some(p=>p.label===label && Number(p.amount)===amountVal && kindOf(p)===formKind);
+    if(dupe){ showToast("Already a quick add"); return; }
+    presets.push({id:"p"+uid(), label, amount:money(amountVal), kind:formKind, category:cat, sub, tags:document.getElementById('fTagsOverlay').value.split(",").map(t=>t.trim()).filter(Boolean)});
+    if(!savePresets(presets)){ presets.pop(); return; }
+    renderQuickAdd(); showToast(`Saved "${label}"`);
+  });
+}
+
+// ---------- Preset overlay — mirrors app/preset-form.tsx ----------
+function openPresetOverlay(){
+  presetKind='out';
+  presetCatOpen=false; presetSubOpen=false;
+  window._presetCatFilter=""; window._presetSubFilter="";
+  const pc=catsFor(presetKind);
+  presetCatValue=pc[0]||""; const ps=ALL_SUBCATS[presetCatValue]||[]; presetSubValue=ps[0]?.n||"";
+  document.getElementById('presetOverlay').style.display='flex';
+  renderPresetOverlay();
+  hapticTap();
+}
+function closePresetOverlay(){ document.getElementById('presetOverlay').style.display='none'; }
+function renderPresetOverlay(){
+  const el=document.getElementById('presetOverlayContent');
+  const cats=catsFor(presetKind);
+  if(!presetCatValue || cats.indexOf(presetCatValue)===-1) presetCatValue=cats[0]||"";
+  const subs=ALL_SUBCATS[presetCatValue]||[];
+  if(subs.length && (!presetSubValue || !subs.some(s=>s.n===presetSubValue))) presetSubValue=subs[0]?.n||"";
+  const isIn=presetKind==='in';
+  el.innerHTML = `
+      <div class="segmented" style="margin-bottom:20px;">
+        <button class="seg-btn ${isIn?'':'active'}" data-preset-kind="out">Money Out</button>
+        <button class="seg-btn ${isIn?'active':''}" data-preset-kind="in">Money In</button>
+      </div>
+      <div class="field-row" style="border-bottom:none; padding:6px 0 4px;">
+        <span class="field-row-label">Label</span>
+        <input id="pLabelOverlay" type="text" placeholder="e.g. Rent" style="border:none; background:transparent; text-align:right; color:var(--text); font-size:16px; outline:none; max-width:62%;">
+      </div>
+      <div class="dropdown-label">Amount</div>
+      <div class="amount-input-row">
+        <span class="peso-sign" ${isIn?'style="color:var(--green);"':''}>${isIn?'+₱':'₱'}</span>
+        <input id="pAmountOverlay" type="number" inputmode="decimal" placeholder="0.00" step="0.01" ${isIn?'style="color:var(--green);"':''}>
+      </div>
+      <div class="dropdown-label">${isIn ? 'Source' : 'Category'}</div>
+      <div class="dropdown-wrapper">
+        <button class="dropdown-btn" id="pCategoryBtnOverlay" aria-label="Select category">
+          <span class="dropdown-btn-inner"><span class="dropdown-btn-text">${escapeHtml(presetCatValue || cats[0] || "Select")}</span></span>
+          ${dropdownArrowHTML(presetCatOpen)}
+        </button>
+        ${buildCategoryDropdownHTML(cats, presetCatValue, presetCatOpen, "presetCat", window._presetCatFilter||"")}
+      </div>
+      ${subs.length ? `
+      <div class="dropdown-label">${isIn ? 'Detail' : 'Subcategory'}</div>
+      <div class="dropdown-wrapper">
+        <button class="dropdown-btn" id="pSubBtnOverlay">
+          <span class="dropdown-btn-inner"><span class="dropdown-btn-text">${escapeHtml(presetSubValue || subs[0]?.n || "Select")}</span></span>
+          ${dropdownArrowHTML(presetSubOpen)}
+        </button>
+        ${buildSubDropdownHTML(presetCatValue, presetSubValue, presetSubOpen, "presetSub", window._presetSubFilter||"")}
+      </div>` : ''}
+      <div class="field-row">
+        <span class="field-row-label">Tags</span>
+        <input id="pTagsOverlay" type="text" placeholder="Optional" style="border:none; background:transparent; text-align:right; color:var(--text-secondary); font-size:16px; outline:none; max-width:62%;">
+      </div>
+  `;
+  el.querySelectorAll("[data-preset-kind]").forEach(btn=> btn.addEventListener("click", ()=>{
+    const k=btn.getAttribute("data-preset-kind"); if(k===presetKind) return; hapticTap(); presetKind=k; presetCatOpen=false; presetSubOpen=false; const pc=catsFor(k); presetCatValue=pc[0]||""; const ps=ALL_SUBCATS[presetCatValue]||[]; presetSubValue=ps[0]?.n||""; renderPresetOverlay();
+  }));
+  const pCatBtn=document.getElementById("pCategoryBtnOverlay");
+  const pSubBtn=document.getElementById("pSubBtnOverlay");
+  if(pCatBtn) pCatBtn.addEventListener("click", ()=>{ hapticTap(); presetCatOpen=!presetCatOpen; if(presetCatOpen) presetSubOpen=false; renderPresetOverlay(); });
+  if(pSubBtn) pSubBtn.addEventListener("click", ()=>{ hapticTap(); presetSubOpen=!presetSubOpen; if(presetSubOpen) presetCatOpen=false; renderPresetOverlay(); });
+  el.querySelectorAll('[data-cat][data-type="presetCat"]').forEach(item=> item.addEventListener("click", ()=>{ presetCatValue=item.getAttribute("data-cat"); const subs2=ALL_SUBCATS[presetCatValue]||[]; presetSubValue=subs2[0]?.n||""; presetCatOpen=false; hapticTap(); renderPresetOverlay(); }));
+  el.querySelectorAll('[data-sub][data-type="presetSub"]').forEach(item=> item.addEventListener("click", ()=>{ presetSubValue=item.getAttribute("data-sub"); presetSubOpen=false; hapticTap(); renderPresetOverlay(); }));
+  el.querySelectorAll('.dropdown-search').forEach(inp=>{
+    inp.addEventListener("input", (e)=>{
+      const key=inp.getAttribute("data-search");
+      if(key==="presetCat") window._presetCatFilter=e.target.value;
+      else if(key==="presetSub") window._presetSubFilter=e.target.value;
+      const filter=e.target.value.toLowerCase();
+      const list=inp.nextElementSibling; if(!list) return;
+      Array.from(list.children).forEach(row=>{ const txt=(row.getAttribute("data-cat")||row.getAttribute("data-sub")||"").toLowerCase(); row.style.display=!filter||txt.includes(filter)?"":"none"; });
+    });
+    inp.addEventListener("click", e=> e.stopPropagation());
+  });
+  const saveBtn=document.getElementById('presetSave');
+  function upd(){ const v=parseFloat(document.getElementById('pAmountOverlay')?.value||'0'); const ok=!isNaN(v) && v>0 && !!presetCatValue; saveBtn.style.opacity=ok?'1':'0.5'; }
+  document.getElementById('pAmountOverlay')?.addEventListener('input', upd); document.getElementById('pLabelOverlay')?.addEventListener('input', upd); upd();
+}
+
+// FAB — mirrors native FAB pushing to /add modal
 document.getElementById("fabBtn").addEventListener("click", ()=>{
   hapticTap();
-  currentView="dashboard";
-  render();
-  setTimeout(()=>{
-    const amt=document.getElementById("fAmount");
-    if(amt){ amt.scrollIntoView({behavior:"smooth", block:"center"}); amt.focus(); }
-  },100);
+  openAddOverlay();
 });
 // also haptics for quick add tiles (delegated)
 render();
