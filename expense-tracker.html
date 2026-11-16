@@ -491,9 +491,9 @@
   </div>
 
   <div class="content">
-    <div id="quickAddCard" style="display:none;"></div>
     <div id="addFormCard"></div>
     <div id="dashboardView"></div>
+    <div id="quickAddCard" style="display:none;"></div>
     <div id="statsView" style="display:none;"></div>
     <div id="logView" style="display:none;"></div>
     <div id="settingsView" style="display:none;"></div>
@@ -1345,14 +1345,28 @@ try{
   addFormSubValue = _as[0]?.n||"";
 }catch(e){}
 
-/* ---------- Quick add tiles — Dashboard Quick Add removed (moved to Settings only, mirrors native (tabs)/index.tsx) ---------- */
+/* Snapshot text/date/number inputs before an innerHTML re-render and write
+   them back after, so opening a dropdown or picking a category/subcategory
+   never wipes what the user already typed. Missing fields are skipped, so
+   calling this while a form is closed is a no-op. */
+function snapshotFields(ids) {
+  const snap = {};
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) snap[id] = el.value;
+  });
+  return snap;
+}
+function restoreFields(snap) {
+  Object.keys(snap).forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = snap[id];
+  });
+}
+
+/* ---------- Quick add tiles — Dashboard section, mirrors native (tabs)/index.tsx ---------- */
 function renderQuickAdd() {
-  // Keep hidden; Settings owns quick adds. Early return so legacy calls are no-ops.
   const el = document.getElementById("quickAddCard");
-  if (el) el.style.display = "none";
-  return;
-  // --- legacy dashboard quick add (intentionally disabled) ---
-  // const _el = document.getElementById("quickAddCard");
   if (!presets.length) {
     el.innerHTML = `
       <div class="section-label">Quick Add</div>
@@ -2142,6 +2156,10 @@ function renderSettings() {
   const theme = currentTheme();
   const accent = currentAccent();
   const el = document.getElementById("settingsView");
+  // Keep whatever the user typed into the inline quick-add form across
+  // re-renders (dropdown opens, category picks). The fields only exist
+  // while the form is open, so this is empty otherwise.
+  const snap = snapshotFields(["pLabel","pAmount","pTags"]);
   el.innerHTML = `
     <div class="section-label">Appearance</div>
     <div class="card">
@@ -2478,6 +2496,7 @@ function renderSettings() {
      const csv=[header,...lines].join("\n");
      const blob=new Blob([csv],{type:"text/csv"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=`gastos-${todayStr()}.csv`; a.click(); URL.revokeObjectURL(url); showToast("Exported CSV");
    }
+   if (snap) restoreFields(snap);
 }
 
 document.getElementById("importFile").addEventListener("change", (ev) => {
@@ -2605,15 +2624,14 @@ function render() {
   document.getElementById("tabStats").classList.toggle("active", currentView==="stats");
   document.getElementById("tabLog").classList.toggle("active", currentView==="log");
   document.getElementById("tabSettings").classList.toggle("active", currentView==="settings");
-  // Quick Add moved to Settings only — Dashboard shows statsGrid only (mirrors native (tabs)/index.tsx)
-  document.getElementById("quickAddCard").style.display = "none";
   document.getElementById("addFormCard").style.display = "none";
   document.getElementById("fabWrap").style.display = currentView==="dashboard" ? "flex" : "none";
   document.getElementById("dashboardView").style.display = currentView==="dashboard" ? "block" : "none";
+  document.getElementById("quickAddCard").style.display = currentView==="dashboard" ? "block" : "none";
   document.getElementById("statsView").style.display = currentView==="stats" ? "block" : "none";
   document.getElementById("logView").style.display = currentView==="log" ? "block" : "none";
   document.getElementById("settingsView").style.display = currentView==="settings" ? "block" : "none";
-  if (currentView==="dashboard") renderDashboard();
+  if (currentView==="dashboard") { renderDashboard(); renderQuickAdd(); }
   else if (currentView==="stats") renderStats();
   else if (currentView==="log") renderLog();
   else renderSettings();
@@ -2696,12 +2714,16 @@ function openAddOverlay(){
   const subs = ALL_SUBCATS[addFormCatValue]||[];
   addFormSubValue = subs[0]?.n||"";
   document.getElementById('addOverlay').style.display='flex';
-  renderAddOverlay();
+  renderAddOverlay({fresh:true});
   hapticTap();
 }
 function closeAddOverlay(){ document.getElementById('addOverlay').style.display='none'; }
-function renderAddOverlay(){
+const ADD_OVERLAY_FIELDS = ["fAmountOverlay","fDateOverlay","fNoteOverlay","fTagsOverlay","fQuickAddNameOverlay"];
+function renderAddOverlay(opts){
   const el=document.getElementById('addOverlayContent');
+  // Re-rendering replaces the whole form via innerHTML — snapshot what the
+  // user typed first and put it back after, unless this is a fresh open.
+  const snap = opts && opts.fresh ? null : snapshotFields(ADD_OVERLAY_FIELDS);
   const cats=catsFor(formKind);
   if(!addFormCatValue || cats.indexOf(addFormCatValue)===-1) addFormCatValue=cats[0]||"";
   const subList=ALL_SUBCATS[addFormCatValue]||[];
@@ -2758,21 +2780,9 @@ function renderAddOverlay(){
   // mirror input for canSave check
   el.querySelectorAll("[data-kind]").forEach(btn=> btn.addEventListener("click", ()=>{
     const k=btn.getAttribute("data-kind"); if(k===formKind) return; hapticTap();
-    const keepOverlay = {
-      amount: document.getElementById('fAmountOverlay') ? document.getElementById('fAmountOverlay').value : "",
-      date: document.getElementById('fDateOverlay') ? document.getElementById('fDateOverlay').value : "",
-      note: document.getElementById('fNoteOverlay') ? document.getElementById('fNoteOverlay').value : "",
-      tags: document.getElementById('fTagsOverlay') ? document.getElementById('fTagsOverlay').value : "",
-      quickAddName: document.getElementById('fQuickAddNameOverlay') ? document.getElementById('fQuickAddNameOverlay').value : ""
-    };
+    // Text fields survive via the snapshot in renderAddOverlay; category and
+    // subcategory intentionally reset to the first of the new kind.
     formKind=k; addFormCatOpen=false; addFormSubOpen=false; window._addCatFilter=""; window._addSubFilter=""; const nc=catsFor(k); addFormCatValue=nc[0]||""; const nl=ALL_SUBCATS[addFormCatValue]||[]; addFormSubValue=nl[0]?.n||""; renderAddOverlay();
-    setTimeout(()=>{
-      if(document.getElementById('fAmountOverlay')) document.getElementById('fAmountOverlay').value = keepOverlay.amount;
-      if(document.getElementById('fDateOverlay')) document.getElementById('fDateOverlay').value = keepOverlay.date;
-      if(document.getElementById('fNoteOverlay')) document.getElementById('fNoteOverlay').value = keepOverlay.note;
-      if(document.getElementById('fTagsOverlay')) document.getElementById('fTagsOverlay').value = keepOverlay.tags;
-      if(document.getElementById('fQuickAddNameOverlay')) document.getElementById('fQuickAddNameOverlay').value = keepOverlay.quickAddName;
-    },0);
   }));
   const catBtn=document.getElementById("fCategoryBtnOverlay");
   const subBtn=document.getElementById("fSubBtnOverlay");
@@ -2800,6 +2810,7 @@ function renderAddOverlay(){
     saveBtn.style.opacity = ok ? '1' : '0.5';
   }
   document.getElementById('fAmountOverlay')?.addEventListener('input', updateSave);
+  if (snap) restoreFields(snap);
   updateSave();
   document.getElementById('btnSavePresetOverlay')?.addEventListener('click', ()=>{
     const amountVal=parseFloat(document.getElementById('fAmountOverlay').value);
@@ -2824,12 +2835,14 @@ function openPresetOverlay(){
   const pc=catsFor(presetKind);
   presetCatValue=pc[0]||""; const ps=ALL_SUBCATS[presetCatValue]||[]; presetSubValue=ps[0]?.n||"";
   document.getElementById('presetOverlay').style.display='flex';
-  renderPresetOverlay();
+  renderPresetOverlay({fresh:true});
   hapticTap();
 }
 function closePresetOverlay(){ document.getElementById('presetOverlay').style.display='none'; }
-function renderPresetOverlay(){
+const PRESET_OVERLAY_FIELDS = ["pLabelOverlay","pAmountOverlay","pTagsOverlay"];
+function renderPresetOverlay(opts){
   const el=document.getElementById('presetOverlayContent');
+  const snap = opts && opts.fresh ? null : snapshotFields(PRESET_OVERLAY_FIELDS);
   const cats=catsFor(presetKind);
   if(!presetCatValue || cats.indexOf(presetCatValue)===-1) presetCatValue=cats[0]||"";
   const subs=ALL_SUBCATS[presetCatValue]||[];
@@ -2893,7 +2906,9 @@ function renderPresetOverlay(){
   });
   const saveBtn=document.getElementById('presetSave');
   function upd(){ const v=parseFloat(document.getElementById('pAmountOverlay')?.value||'0'); const ok=!isNaN(v) && v>0 && !!presetCatValue; saveBtn.style.opacity=ok?'1':'0.5'; }
-  document.getElementById('pAmountOverlay')?.addEventListener('input', upd); document.getElementById('pLabelOverlay')?.addEventListener('input', upd); upd();
+  document.getElementById('pAmountOverlay')?.addEventListener('input', upd); document.getElementById('pLabelOverlay')?.addEventListener('input', upd);
+  if (snap) restoreFields(snap);
+  upd();
 }
 
 // FAB — mirrors native FAB pushing to /add modal

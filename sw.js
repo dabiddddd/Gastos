@@ -1,4 +1,4 @@
-const CACHE_NAME = "gastos-cache-v7";
+const CACHE_NAME = "gastos-cache-v8";
 
 /* Precache list. Anything that 404s is skipped rather than failing the whole
    install. cache.addAll() rejects if a single file is missing, which silently
